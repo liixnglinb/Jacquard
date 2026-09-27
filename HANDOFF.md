@@ -149,10 +149,24 @@ curl -s -A "Mozilla/5.0" https://lxlrwxs.top/modelflow/ | grep -o "Loom-[0-9.]*-
 留出的负空间有 5 列，而糊掉的阈值是 2 列，最小构件仍是 2px。口径没变：16/20/24/32/40 五档手工
 整数对齐（`SMALL` 表，现在每档多一个 `hook`），柔光只走 48 及以上，`tests/test_icon_assets.py`
 按"右端对齐 + 钩真的在 + 负空间 ≥2 列"三件事栅格化实测。
-**注意 1.2.5 那个包里装的还是 L** —— 图标在 `assets/loom.ico`，只有下一次 `make_release.py`
-才会把它打进 exe，中途别拿已装版本比对图标。
+**字标从哪个包开始生效**：1.2.5 及更早的包里装的仍是 **L**，J 是 **1.2.6** 才进 exe 的
+（图标只在 `make_release.py` 那一步被打进去）。所以"我这台机器上怎么还是 L"多半就是没升到 1.2.6。
 **下一次大版本要切的**：产物名 + 安装目录 + 数据目录 `modex-data` / `flowforge.db` 这些
 ModelFlow 时代的残留。
+
+**1.2.6（2026-09-27）不带新功能，是把上两轮只躺在源码里的东西装进包里**：J 字标、补上的
+那几处显示串、以及**打包时才翻出来的第六处** —— `installer.iss` 的 `MyAppName` 仍是「织流 Loom」，
+它管着「添加或删除程序」的条目名、开始菜单/桌面快捷方式名和安装向导标题。**只换显示名，
+`AppId` 与 `MyAppExe` 一个没动**，所以 1.2.6 仍是同一个条目的替换安装、卸载列表里不会长出两个；
+代价是老那份旧名桌面快捷方式在原地升级后可能留着（指向同一个 exe，能用）。**换完按字节验的是
+产物不是源码**：`release/Loom-1.2.6-setup.exe` 里搜得到「织流 Jacquard」、搜不到「织流 Loom」。
+
+**同一天站点侧也跟上**（`liixnglinb/Voyra` `c14d82c`）：`public/modelflow/index.html` 16 处 `Loom`
+里 15 处是品牌字样与仓库地址（含 `liixnglinb/Loom` → `liixnglinb/Jacquard`），**唯一该留的那处是
+COS 产物 key**（页里写死了 `Loom-1.2.6-setup.exe` 的直链）；`logo.svg` + 五张 PNG 换成 J 字标，
+`src/pages/Dashboard.jsx` 两处。**踩到一条**：整批换品牌字样必须先正则把产物名遮出来再 replace，
+替换后断言只剩它 —— 第一版没遮，是脚本自己的计数断言（"命中 10 处，预期 8 处"）把它拦下来的，
+不然就是线上一片 404。
 
 **仍然没验的两条，别当成已验**：① 打包态 `apply_update()`（替换自身）到今天为止没人真跑过。
 1.2.4 加的两件事（装成功后 `del` 那个 setup.exe、开机再扫一遍 `data/updates`）发完之后拿**真 PE 桩**
@@ -203,17 +217,6 @@ ModelFlow 时代的残留。
    `cubic-bezier(.4,0,.2,1)`、以及**离线打包 Montserrat 给西文用**（用户当时点了这条，但和上面一起冻住了；
    注意 `test_font_faces_declare_one_standard_weight_each` 要求全站 @font-face 的字重集合**正好**是 400/500/600/700，
    可变字体轴 `100 900` 会直接判失败）。
-6. **站点侧的改名没做**（2026-09-27 核对，本轮刻意留着）。产品端显示层已经全是 Jacquard，
-   站上有两处仍是前身名，都在 `D:\Voyra 个人网站`：`src/pages/Dashboard.jsx:27` 的下载卡
-   `name: '织流 Loom'`、`:422` 预览条「织流 Loom 流程」，以及 `public/modelflow/index.html`
-   整页（2026-09-27 抓线上实测：`Loom` 11 处 + `织流 Loom` 5 处），页内图标资源
-   `logo.svg` / `logo-64.png` / `favicon-{16,32}.png` 也还是**旧字标 L**（新 J 图标只在产品仓库的
-   `assets/`、`static/` 里，还没进任何一个包）。**要动就得走一次 `liixnglinb/Voyra` 的 main 推送 ——
-   Cloudflare 自动部署、直接影响线上**，所以先问。改之前记得那份页内 mock 是逐值对齐软件的，
-   只换字样不换几何。
-7. **要不要现在发 1.2.6**。字标换 J、补上的那五处显示串、`FastAPI(title=...)` 全部只在**新包**里生效；
-   不发版它们就只躺在源码里。发版 = `make_release.py` → 推源码 → `upload_cos.py` → `sync_landing.py`
-   → Cloudflare 上线 → 所有已装用户会在软件里看到更新，这是往线上推的动作，按第 5 节 SOP 得一步步看着走。
 
 ---
 
