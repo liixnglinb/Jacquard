@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Loom 织流 · 打包后的桌面入口（源码运行仍用 python run.py）。
+"""Jacquard 织流 · 打包后的桌面入口（源码运行仍用 python run.py）。
 
 形态：后台线程跑 uvicorn，前台优先开 pywebview 原生窗口（Win10/11 的 WebView2）。
 **开不出原生窗口就退回默认浏览器** —— 软件本体是个本地 Web 应用，
@@ -7,7 +7,7 @@
 
 其他行为：
   - 单实例：靠一个命名互斥体判定，**不是**靠端口占用 —— 端口占用只能说明
-    "有人在这个口上"，说明不了那是不是 Loom（一台跑着开发服务的机器上，
+    "有人在这个口上"，说明不了那是不是 Jacquard（一台跑着开发服务的机器上，
     前者天天成立、后者未必）。已有实例时把它的窗口拉到前台并退出。
   - 冻结态 console=False 时 stdout/stderr 是 None：先重定向到内存流，
     否则任何一句 print 都会 AttributeError 把启动打断。
@@ -24,7 +24,7 @@ import sys
 import threading
 import time
 
-WINDOW_TITLE = "织流 Loom"
+WINDOW_TITLE = "织流 Jacquard"
 DEFAULT_PORT = 8000
 
 
@@ -69,10 +69,10 @@ _MUTEX_HANDLE = None      # 必须一直攥在手里：句柄一被回收，锁�
 
 
 def acquire_single_instance_lock() -> bool:
-    """True = 这个进程是唯一的实例；False = 已经有 Loom 在跑。
+    """True = 这个进程是唯一的实例；False = 已经有 Jacquard 在跑。
 
     拿"端口能不能连"当单实例判据是错的：它既会误报（别的程序占了 8000，
-    其实 Loom 没在跑），也会漏报（Loom 跑在 8001，端口判据看不见）。"""
+    其实 Jacquard 没在跑），也会漏报（Jacquard 跑在 8001，端口判据看不见）。"""
     global _MUTEX_HANDLE
     try:
         import ctypes
@@ -301,7 +301,7 @@ def main():
         return 3
 
     url = f"http://127.0.0.1:{port}"
-    print(f"Loom 织流 启动 {url}")
+    print(f"Jacquard 织流 启动 {url}")
     try:
         threading.Thread(target=_serve, args=(port,), daemon=True).start()
     except Exception as e:

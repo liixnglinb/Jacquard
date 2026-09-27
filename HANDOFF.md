@@ -11,11 +11,11 @@
 
 | 项 | 状态 | 怎么复核 |
 |---|---|---|
-| 源码仓库 | `liixnglinb/Loom`（**公开**，main） | `gh api repos/liixnglinb/Loom/commits/main --jq .sha` |
-| 旧 ModelFlow | 保留在同仓库 `modelflow-legacy` 分支 + `v0.8.8-legacy` 标签 | `gh api repos/liixnglinb/Loom/branches --jq '.[].name'` |
+| 源码仓库 | `liixnglinb/Jacquard`（**公开**，main；2026-09-27 由 `Loom` 改名） | `gh api repos/liixnglinb/Jacquard/commits/main --jq .sha` |
+| 旧 ModelFlow | 保留在同仓库 `modelflow-legacy` 分支 + `v0.8.8-legacy` 标签 | `gh api repos/liixnglinb/Jacquard/branches --jq '.[].name'` |
 | 安装包 | `https://modelflow-1447874637.cos.ap-guangzhou.myqcloud.com/<清单里那个 file>`（公有读；**别在这里写死版本**，照着 latest.json 读） | `curl -sI <url> \| grep -i content-length` |
 | 版本清单 | 同桶 `latest.json`（公有读，含 version/url/file/sha256/size/notes）—— 真源只有这一份 | `curl -s .../latest.json` |
-| 下载页 | `https://lxlrwxs.top/modelflow/`（**URL 沿用 modelflow**，内容已是 Loom，无授权码） | 带浏览器 UA 抓页面，`grep -c 授权码` 应为 0 |
+| 下载页 | `https://lxlrwxs.top/modelflow/`（**URL 沿用 modelflow**，内容已是 Jacquard（原名 Loom），无授权码） | 带浏览器 UA 抓页面，`grep -c 授权码` 应为 0 |
 | 软件内更新 | 读同一份 `latest.json`；打包态可静默装上 | `curl -s localhost:8000/api/update` |
 
 ```bash
@@ -33,7 +33,7 @@ curl -s -A "Mozilla/5.0" https://lxlrwxs.top/modelflow/ | grep -o "Loom-[0-9.]*-
 
 | 项 | 值 | 怎么复核 |
 |---|---|---|
-| 线上 main | 每次发版都推到当轮 HEAD（不写死 sha，改它自己就多一个提交） | `gh api repos/liixnglinb/Loom/commits/main --jq .sha[0:7]` |
+| 线上 main | 每次发版都推到当轮 HEAD（不写死 sha，改它自己就多一个提交） | `gh api repos/liixnglinb/Jacquard/commits/main --jq .sha[0:7]` |
 | 未推提交 | 以 `git log --oneline origin/main..HEAD` 为准；发版 SOP 第 3 步就是推它 | 同左 |
 | 工作区 | 测试全过（条数以 `pytest -q` 末行为准，别抄这里） | `git status --short` |
 | 本地服务 | 8000 端口有一个源码态实例在跑（数据在 `modex-data/`） | `curl -s localhost:8000/api/health` |
@@ -94,7 +94,7 @@ curl -s -A "Mozilla/5.0" https://lxlrwxs.top/modelflow/ | grep -o "Loom-[0-9.]*-
 在页面里调我们自己的按钮测不到 `resize`/`focus` 那条 —— 而那正是这批要修的东西。
 
 **这一轮（2026-09-25，发 1.2.0）做完的**：权限模式收成三档并让模式接管沙箱（第四档用检查点代替）、
-运行级模型覆盖（候选只列真存在的端点预设）、工作文件夹（**只换智能体的 cwd，Loom 自己的写入仍留在
+运行级模型覆盖（候选只列真存在的端点预设）、工作文件夹（**只换智能体的 cwd，Jacquard 自己的写入仍留在
 工作区**）、记忆文件在这台机器上可写（路径仍只从盘点清单里算）、字号基准 13→14 按参考图重标定八档、
 暗色侧栏抬到卡片同色（分栏靠色差不靠线）、无边框窗口 + 自绘三枚窗控。
 
@@ -120,6 +120,25 @@ curl -s -A "Mozilla/5.0" https://lxlrwxs.top/modelflow/ | grep -o "Loom-[0-9.]*-
 **新查出来、还没做的一条（不是回归）**：亮色 `.sb-run`（项目行，`--ink-3` = 60% 墨）压在 `--bg-shell`
 上实测 **3.79:1**，低于正文 4.5 那条线；抬侧栏之前是 3.96，本来就不达标，这一改只动了 0.17。
 要修得连 `.sb-kbd` / `.sb-group` 那一族"暗字压浅底"一起看，属于一次独立的亮色对比度专项。
+
+**改名（2026-09-27）：织流 Loom → 织流 Jacquard，仓库 `liixnglinb/Loom` → `liixnglinb/Jacquard`。**
+为什么换：拉丁名 Loom 撞得厉害（loom.com 是视频大厂，GitHub 上 `tokio-rs/loom` 2828★、同名仓库 12165 个），
+公开仓库和搜索长期吃亏；而"数模流水线"这半截把一个通用编排器钉死在一个场景上（代码里没有任何数模专属东西）。
+中文名「织流」保留 —— 织机正是"把有序步骤织成交付物"这回事。**Jacquard = 提花机**：1804 年用打孔卡片
+编程控制织机，是"把一套有序指令交给一台机器去执行"的祖师爷，语义最贴；实测 GitHub 只有 184 个同名仓库、
+最亮 234★ 且不相关（候选里 `weft` 被 AI 领域一个 1980★ 项目占住、`shuttle`/`weaver`/`conduit` 都有 2000★+）。
+
+**这一轮只改显示层**，下面四样**刻意没动**，别顺手改：
+① 安装包产物名仍是 `Loom-<版本>-setup.exe`、COS key 同、`latest.json` 的 `file`/`url` 同 ——
+  改了已装 1.2.5 的人点「安装并重启」会装上**另一个名字**的程序（旧那份不会被替换，
+  「添加或删除程序」里留两个条目），并且自动更新链会断在一次需要手动重装的跳转上；
+② `installer.iss` 的安装目录 `{localappdata}\Programs\Loom` 同理由不动；
+③ 命名互斥体 `Local\LoomZhiLiu.SingleInstance` **不能改** —— 它的唯一作用就是拦住"两份程序写同一个
+  SQLite"，改了名以后旧版 Loom 和新版 Jacquard 会同时起来，那正是它要防的事；
+④ 技能来源的**键值** `'loom'`（`skill_src` 存在流程 JSON 里）不动，只换了显示标签。
+**下一次大版本要切的**：产物名 + 安装目录 + 数据目录 `modex-data` / `flowforge.db` 这些 ModelFlow 时代的残留，
+以及图标字标（现在是 **L**，名字换了它就该是 **J** —— 见第 78 号任务的口径：栅格化实测最小构件 ≥2px、
+16/20/24/32/40 五档手工整数对齐、柔光只走 48 及以上）。
 
 **仍然没验的两条，别当成已验**：① 打包态 `apply_update()`（替换自身）到今天为止没人真跑过。
 1.2.4 加的两件事（装成功后 `del` 那个 setup.exe、开机再扫一遍 `data/updates`）发完之后拿**真 PE 桩**
@@ -204,7 +223,7 @@ curl -s -A "Mozilla/5.0" https://lxlrwxs.top/modelflow/ | grep -o "Loom-[0-9.]*-
   `experimental_bearer_token`。所以预览口只开给四类"用户自己写的 markdown"
   （记忆 / 技能 / 命令 / 子智能体），mcp / hooks / plugins 连预览都没有。
   别顺手加"编辑"：schema 不归我们（同一轮里 codex 一次升级就把 `wire_api="chat"` 判死了），
-  写坏的是用户 CLI 本体，而且 Loom 自己也跑不了 —— 它靠那两个 CLI 出正文。
+  写坏的是用户 CLI 本体，而且 Jacquard 自己也跑不了 —— 它靠那两个 CLI 出正文。
   真机上踩到过两处误判（假数据里没有的形状）：`officialMarketplaceAutoInstalled` 这类记账布尔
   被当成插件、`[mcp_servers.node_repl.env]` 子段被当成第二台 MCP 服务器。
 - **步骤的 `skill_src` 是"引用哪一家的技能目录"，不是路径。** 三家技能同格式（`<name>/SKILL.md`），
@@ -248,7 +267,7 @@ curl -s -A "Mozilla/5.0" https://lxlrwxs.top/modelflow/ | grep -o "Loom-[0-9.]*-
   401×187 完整落在 mock 内、水平居中偏差 0、横向无溢出。
   2026-09-25 那一轮对出来的四处漂移：mac 的三枚 traffic-light（软件已换自绘窗控的无边框窗口）、侧栏那条 `border-right`（软件删了，分栏只靠色差）、进度行的 `--d-panel` 底带（软件的 `.rp-bar` 不铺底）、"刚写入"推到行尾（被浮在右上角的进程卡压住半截）。**逐值比 `getComputedStyle`，别目测像不像** —— 这四条里没有一条是"看一眼能发现"的。
 - **这张页被砍过一次，别再砍。** `9c53b61`（2026-09-19）把它从 64KB 删到 25.8KB，交互动效、区块、mock 窗口的精细度全没了；`a28065e`（2026-09-20）按软件真实结构重做到 63.7KB。改它之前先 `git show` 对比一下字节数，掉一档就是又在删东西。
-- **没有 CI。** `liixnglinb/Loom` 里连 `.github/` 都没有，测试只在本地跑。公开仓库加一条 `python -m pytest -q` 的 workflow 成本很低，但会引入"CI 绿了才发版"的新约定，先问。
+- **没有 CI。** `liixnglinb/Jacquard` 里连 `.github/` 都没有，测试只在本地跑。公开仓库加一条 `python -m pytest -q` 的 workflow 成本很低，但会引入"CI 绿了才发版"的新约定，先问。
 - **`update_repo` / `update_asset` 是废弃设置项**，值还留在用户机器的 settings 表里、`/api/settings` 也还回得出来。代码已不读它们。清理要连带迁移，别顺手删一半。
 - **只有 Windows 安装包。** macOS/Linux 靠源码跑（README 里这么写的，没撒谎）。
 - **组件图鉴里有一行 mock 数据写着 `modelflow`**（`src/pages/UIKit.jsx` 的演示表格）。是组件示例不是产品入口，上一任故意没改。
@@ -418,7 +437,7 @@ PYTHONUTF8=1 "<python>" -m pytest -q          # 全绿即可，不需网络
 - 圆角跟**嵌套层数**走：第一个圆角容器 `--r-4`，往里 `--r-3 → --r-2 → --r-1`；`--r-5` 只有四个批准例外（主输入台壳 / 对话框壳 / toast / 品牌底板）；胶囊档只给故意的胶囊和正圆（清单是 `NESTED_RADIUS` + `CIRCLE_50`，双向锁）。
 - 侧栏一个入口一件事：同一次运行不在「项目」和另一组「最近」里各出现一次；run 嵌在自己的流程下面。
 - 居中的浮层收起时必须 `pointer-events:none`（`inset:0` 的遮罩只用 opacity 收 = 全屏点不动）。
-- **`ws` 和 `cwd` 是两件事，不许合并。** `ws` 是 Loom 自己的落盘处（派生工作区 `run-<id>`：转录、给 claude 的系统提示文件、步骤产物），`cwd` 只是智能体在哪个目录干活（下任务时选的文件夹）。合成一个的后果是具体的：`delete_run` 里那句 `rmtree(workspace_dir(...))` 会去删用户的工程目录，而 codex 那路会往里面写 `AGENTS.md` 覆盖人家的项目记忆 —— 所以 codex + 自定义文件夹在 `start_run` 就直接拒（按 `resolve_engine` 判，和实际跑的那套同源）。
+- **`ws` 和 `cwd` 是两件事，不许合并。** `ws` 是 Jacquard 自己的落盘处（派生工作区 `run-<id>`：转录、给 claude 的系统提示文件、步骤产物），`cwd` 只是智能体在哪个目录干活（下任务时选的文件夹）。合成一个的后果是具体的：`delete_run` 里那句 `rmtree(workspace_dir(...))` 会去删用户的工程目录，而 codex 那路会往里面写 `AGENTS.md` 覆盖人家的项目记忆 —— 所以 codex + 自定义文件夹在 `start_run` 就直接拒（按 `resolve_engine` 判，和实际跑的那套同源）。
 - 派生工作区的目录名只有一份规则：`db.ws_dir_name(run_id)`。`runner._ws_path` 和 `create_run` 写进库的那个名字都必须走它 —— 从前是两份各写各的，库里存着 `run-run-<id>` 这种磁盘上根本不存在的名字。
 - 滑块读数说「14px」：`ROOT_PX`（app.js）必须等于 CSS 里 `html{font-size:calc(14px * …)}` 的那个 14，测试钉着。
 - 设置页外观的档位表只有一处真相：`ui.js` 的 `TEXT_SIZES/ZOOMS/WIDTHS/THEMES/ACCENTS`，`APP` 里的键名和

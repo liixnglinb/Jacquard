@@ -1,5 +1,5 @@
 /* ==========================================================================
- * Loom 织流 · 界面文案与外观引擎
+ * Jacquard 织流 · 界面文案与外观引擎
  *  window.t(key, params)  —— 按当前语言取文案
  *  window.APP             —— 外观状态（语言/明暗/字体/字号/缩放/内容宽度）
  *  window.applyAppearance —— 把状态写到 <html> 的属性与 CSS 变量上
@@ -10,7 +10,7 @@
 
 const DICT = {
   zh: {
-    'brand.name': '织流', 'brand.sub': '本地智能体流水线工作台', 'brand.full': 'Loom 织流',
+    'brand.name': '织流', 'brand.sub': '本地智能体流水线工作台', 'brand.full': 'Jacquard 织流',
     'nav.workflows': '工作流', 'nav.skills': '技能库', 'nav.runs': '运行记录', 'nav.settings': '设置',
     'nav.newTask': '新建任务', 'sb.search': '搜索流程与运行', 'sb.noHit': '没有匹配的流程或运行',
     'sb.liveN': '{n} 个在跑', 'sb.noLive': '当前没有在跑的任务', 'sb.flows': '项目', 'sb.newFlow': '新建项目',
@@ -41,7 +41,7 @@ const DICT = {
     'up.recheck': '重新检查', 'up.close': '关闭',
     'up.busyConfirm': '还有 {n} 个任务在跑或停在检查点。现在更新可能打断它们，确定继续？',
     'up.apply': '安装并重启',
-    'up.applyD': '下载完成后由程序装上安装包并退出，安装器会自己关掉正在运行的 Loom',
+    'up.applyD': '下载完成后由程序装上安装包并退出，安装器会自己关掉正在运行的 Jacquard',
     'up.applyNo': '当前是源码运行，没有可替换的程序 —— 请直接双击安装包装新版本',
     'up.applyGo': '确认安装 v{v} 并退出当前程序？', 'up.applyStarted': '正在安装，程序即将退出',
 
@@ -108,9 +108,9 @@ const DICT = {
     'ed.role': '角色', 'ed.role.executor': '执行', 'ed.role.reviewer': '审查', 'ed.role.editor': '润色',
     'ed.roleHint.executor': '主执行步骤：产出本步文件', 'ed.roleHint.reviewer': '检查前序产物，挑问题给修正意见',
     'ed.roleHint.editor': '对既有产物做编辑改进', 'ed.mainSkill': '主技能', 'ed.viewSkills': '查看技能库',
-    'ed.src.loom': 'Loom', 'ed.src.claude': 'Claude', 'ed.src.codex': 'Codex',
-    'ed.extHint': '按名字引用，Loom 不拷贝也不改写这份技能。',
-    'ed.lostSkill': '这份技能在 Loom 的目录里已经找不到了。',
+    'ed.src.loom': 'Jacquard', 'ed.src.claude': 'Claude', 'ed.src.codex': 'Codex',
+    'ed.extHint': '按名字引用，Jacquard 不拷贝也不改写这份技能。',
+    'ed.lostSkill': '这份技能在 Jacquard 的目录里已经找不到了。',
     'ed.out': '产物文件', 'ed.outPh': '如 ANALYSIS.md', 'ed.outHint': '写入工作区，后续步骤可引用',
     'ed.advanced': '高级选项', 'ed.engine': '执行引擎', 'ed.engineDefault': '默认',
     'ed.engineHint': '留空=用设置页默认引擎', 'ed.engineNone': '本机未检测到 CLI 智能体，先去设置页确认',
@@ -292,7 +292,7 @@ const DICT = {
     'pr.wireHint': 'codex 引擎用：responses（新）或 chat（兼容旧网关）',
   },
   en: {
-    'brand.name': 'Loom', 'brand.sub': 'Local agent pipeline', 'brand.full': 'Loom',
+    'brand.name': 'Jacquard', 'brand.sub': 'Local agent pipeline', 'brand.full': 'Jacquard',
     'nav.workflows': 'Workflows', 'nav.skills': 'Skills', 'nav.runs': 'Runs', 'nav.settings': 'Settings',
     'nav.newTask': 'New task', 'sb.search': 'Search workflows and runs', 'sb.noHit': 'No matching workflow or run',
     'sb.liveN': '{n} running', 'sb.noLive': 'Nothing is running', 'sb.flows': 'Projects', 'sb.newFlow': 'New project',
@@ -323,7 +323,7 @@ const DICT = {
     'up.recheck': 'Check again', 'up.close': 'Close',
     'up.busyConfirm': '{n} task(s) are running or parked at a checkpoint. Updating now may interrupt them — continue?',
     'up.apply': 'Install and restart',
-    'up.applyD': 'Once downloaded the app runs the installer and quits; the installer closes the running Loom itself',
+    'up.applyD': 'Once downloaded the app runs the installer and quits; the installer closes the running Jacquard itself',
     'up.applyNo': 'Running from source — there is no executable to replace. Install the new setup package directly',
     'up.applyGo': 'Install v{v} and quit the running app?', 'up.applyStarted': 'Installing, the app is about to quit',
 
@@ -344,7 +344,7 @@ const DICT = {
     'task.labelPh': 'defaults to the workflow name', 'task.start': 'Run end to end',
     'task.needBrief': 'Task brief is required', 'task.started': 'Started', 'task.noFlow': 'No workflow yet — create one first',
     'task.dirPh': 'Working folder (blank = default workspace)',
-    'task.dirTip': 'Only the agent\'s working directory changes — transcripts, artifacts and the system prompt still land in Loom\'s own run workspace. Claude supports it; codex reads AGENTS.md from its run directory to get the step instructions, so a custom folder is refused before the run starts.',
+    'task.dirTip': 'Only the agent\'s working directory changes — transcripts, artifacts and the system prompt still land in Jacquard\'s own run workspace. Claude supports it; codex reads AGENTS.md from its run directory to get the step instructions, so a custom folder is refused before the run starts.',
 
     'st.pending': 'Pending', 'st.running': 'Running', 'st.waiting': 'Awaiting', 'st.done': 'Done',
     'st.failed': 'Failed', 'st.cancelled': 'Cancelled', 'st.revising': 'Revising', 'run.stepOf': '{done} / {total} steps done',
@@ -390,9 +390,9 @@ const DICT = {
     'ed.role': 'Role', 'ed.role.executor': 'Execute', 'ed.role.reviewer': 'Review', 'ed.role.editor': 'Edit',
     'ed.roleHint.executor': 'Main execution step: produces the file', 'ed.roleHint.reviewer': 'Reviews upstream output, lists issues',
     'ed.roleHint.editor': 'Improves an existing artifact', 'ed.mainSkill': 'Main skill', 'ed.viewSkills': 'Browse skills',
-    'ed.src.loom': 'Loom', 'ed.src.claude': 'Claude', 'ed.src.codex': 'Codex',
-    'ed.extHint': 'Referenced by name — Loom neither copies nor rewrites this skill.',
-    'ed.lostSkill': 'This skill is no longer in Loom\'s own folder.',
+    'ed.src.loom': 'Jacquard', 'ed.src.claude': 'Claude', 'ed.src.codex': 'Codex',
+    'ed.extHint': 'Referenced by name — Jacquard neither copies nor rewrites this skill.',
+    'ed.lostSkill': 'This skill is no longer in Jacquard\'s own folder.',
     'ed.out': 'Artifact file', 'ed.outPh': 'e.g. ANALYSIS.md', 'ed.outHint': 'written to the workspace for later steps',
     'ed.advanced': 'Advanced', 'ed.engine': 'Engine', 'ed.engineDefault': 'Default',
     'ed.engineHint': 'empty = the default engine in Settings', 'ed.engineNone': 'No CLI agent detected — check Settings first',
@@ -537,7 +537,7 @@ const DICT = {
     'caps.unsaved': 'This memory file has unsaved edits. Close anyway?',
     'caps.memSaved': 'Memory saved',
     'st.heat': 'Token activity',
-    'st.tokens': 'Total tokens', 'st.tokensD': 'Summed from what the CLIs report, cache counted once. Loom never calls a model, so nothing reported counts as 0.',
+    'st.tokens': 'Total tokens', 'st.tokensD': 'Summed from what the CLIs report, cache counted once. Jacquard never calls a model, so nothing reported counts as 0.',
     'st.tokIO': 'Input / output', 'st.tokIOD': 'Input is the uncached part; output is what the agent actually wrote.',
     'st.tokCache': 'Cache read', 'st.tokCacheD': 'Cache hits, split out of the input above so they are never counted twice.',
     'st.tokReason': 'Reasoning', 'st.tokReasonD': 'Chain-of-thought spend. Already inside output, not added again; only engines that report it.',
