@@ -180,7 +180,29 @@ COS 产物 key**（页里写死了 `Loom-1.2.6-setup.exe` 的直链）；`logo.s
 真机验证走真鼠标点击：armed 后 `:focus-visible` **不匹配**，所以没有那圈白光环 —— 控制台里
 `element.click()` 会匹配，那是仪器造成的，别照着它改样式。
 
-**仍然没验的两条，别当成已验**：① 打包态 `apply_update()`（替换自身）到今天为止没人真跑过。
+**1.2.7（2026-09-27 晚）修的是"装更新那一下"的观感，三件事**：
+① 点「安装并重启」不再弹系统确认框（那框顶着一句「127.0.0.1:8000 显示」，报的是开发
+服务器来源；按钮是系统蓝；"要退出"和"有任务在跑"还连着弹两个）—— 改成浮层内两步；
+设置页那颗按钮不再自己弹一套，改为打开同一个浮层并直接上膛。
+② 装上时不再请 Windows 去关"占着文件的程序"：`installer.iss` 的 `CloseApplications`
+改成 `no`，批处理也不再传那个开关，退出改走壳注册的钩子（销毁窗口 → `webview.start()`
+返回 → `main()` 走完 → atexit 举旗），批处理**等那面旗**而不是盲睡三秒（上限 20 秒）。
+③ 加 in-flight 闸门，点两下不起两个安装器。
+
+**这一条要留着下次验**：今天拿真包跑了一次真自更新（scratch 那份 1.2.6 → COS 上的 1.2.7），
+链是通的（注册表 `DisplayVersion 1.2.7`、exe 换了、`data/updates` 清空），
+**但事件日志里还是出现了一次 RestartManager 会话 —— 因为跑这次更新的是 1.2.6 的客户端，
+它的批处理里还带着那个开关**。新逻辑要等**下一个版本**由 1.2.7 去装时才真正生效，
+那时候照这条量：`Get-WinEvent` 过滤 `ProviderName='Microsoft-Windows-RestartManager'`，
+在点「安装并重启」的窗口内**应当是 0 条**。在那之前，"弹窗没了"这句话没人验证过，别当已验。
+
+**顺带量到的一条 Inno 行为**：静默重装**不带 `/DIR` 时用的是注册表里记着的
+`InstallLocation`**，不是 iss 里写的默认值 —— 所以那次更新装进了
+`D:\AI-Tools-Data\tmp\loom-installed\`（scratch 那份），而 `{localappdata}\Programs\Loom`
+至今不存在。想知道装到哪了，查 `HKCU\...\Uninstall\{7C1D4E9A-...}_is1` 的 InstallLocation。
+
+**验掉了一条、还剩一条**：① 打包态 `apply_update()`（替换自身）在 2026-09-27 第一次真跑了
+（下面那段历史留着，它记的是当时为什么只能拿桩测）。
 1.2.4 加的两件事（装成功后 `del` 那个 setup.exe、开机再扫一遍 `data/updates`）发完之后拿**真 PE 桩**
 （Git 自带的 `true.exe`/`false.exe` 改名成 `Loom-9.9.9-setup.exe`）在临时目录里把那段 BAT 真跑了四遍：
 删/留两支控制流**是对的**，但顺带量出 **`timeout /t 3` 在标准输入被重定向时（我们是 `DETACHED_PROCESS`
@@ -188,8 +210,11 @@ COS 产物 key**（页里写死了 `Loom-1.2.6-setup.exe` 的直链）；`logo.s
 是 0 秒，安装器一上来就在换一个还没退出的程序（能装上靠的是 `/CLOSEAPPLICATIONS` 兜底，不是设计）。
 **这条已由 1.2.5 发出去**：换成 `ping -n 4 127.0.0.1` + 安装器直接当子进程调用，实测 3.7 秒，
 `tests/test_update_cleanup.py` 里三条真跑的测试钉着（含"至少睡 2 秒"）。
-**但"真装机"这一步仍然没验** —— 安装器 `/SILENT` 返回后那个文件还被不被占用，只有装一次才知道；
-最坏结果也只是包留在那儿没删掉，下次开机那一扫会收走。② 安装包仍无代码签名，SmartScreen 照拦。
+**"真装机"这一步也验掉了**：`data/updates` 事后是空的，说明安装器 `/SILENT` 返回时那个文件的
+锁确实已经放开（包被自己删掉了，不是留给开机那一扫）。**但这一跑执行更新的是 1.2.6 的旧批处理**，
+它还带着那个"关应用"的开关 —— 事件日志里也确实又起了一次 RestartManager 会话。所以 1.2.7 的
+新逻辑（不请系统关东西 + 等举旗）要等**下一个版本由 1.2.7 去装**时才算真验过，量法见上面 1.2.7 那条。
+② 安装包仍无代码签名，SmartScreen 照拦。
 （原来第三条"无边框窗控拿不到桥"**已经验掉了**：`webview.start(func,args)` 那条路确实不返回，
 但启动前设 `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS=--remote-debugging-port=92xx`，再从
 `/json/list` 拿 page 目标的 ws 连 CDP `Runtime.evaluate`，就能在真窗口里量。实测结果见第 2 节
