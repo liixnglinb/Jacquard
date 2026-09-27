@@ -513,6 +513,10 @@ window.footCycle = async function(key){
    只有「有东西可点」的时候才占位：idle / checking / 已是最新 一律隐藏，
    免得一个永远灰着的按钮骗人。 */
 let UP = null, UP_POLL = null;
+/* 页内两步确认的"上膛"状态：'' | 'apply' | 'download'。
+   这一步以前是原生 confirm()，在 WebView2 里顶着一句「127.0.0.1:8000 显示」——
+   那报的是开发服务器来源，不是软件名；按钮还是系统蓝，跟黑白品牌没关系。 */
+let UP_ASK = '';
 const mb = n => (n/1048576).toFixed(1) + ' MB';
 
 function upView(s){
@@ -574,13 +578,24 @@ function upCardHtml(){
        <div class="up-mb">${esc(mb(u.got||0))} / ${esc(mb(u.size||0))}</div>` : '';
   const err = u.phase==='error' ? `<div class="up-err">${esc(u.error||t('up.unknown'))}</div>` : '';
   const later = `<button class="btn" onclick="upClose()">${esc(t('up.later'))}</button>`;
+  const cancel = `<button class="btn" onclick="upAskCancel()">${esc(t('c.cancel'))}</button>`;
+  /* 后果说在按钮上方，不再弹一个跟本软件无关的系统框：「装完要自己再打开」和
+     「在跑的任务会被打断」才是按下去之前需要读完的两句话。 */
+  const runN = u.active_runs || 0;
+  const ask = !UP_ASK ? '' : `<div class="up-ask"><b>${
+      esc(t(UP_ASK === 'apply' ? 'up.askApply' : 'up.askDownload', {v: u.latest || ''}))}</b>${
+      runN > 0 ? `<div class="up-ask-warn">${
+        esc(t(UP_ASK === 'apply' ? 'up.askBusyQuit' : 'up.askBusyDl', {n: runN}))}</div>` : ''
+    }</div>`;
   let btns;
   if(u.phase === 'available')
-    btns = `<button class="btn btn-primary" onclick="upDownload()">${esc(t('up.downloadNow'))}</button>${later}`;
+    btns = `<button class="btn btn-primary" onclick="upDownload()">${esc(t('up.downloadNow'))}</button>${UP_ASK === 'download' ? cancel : later}`;
   else if(u.phase === 'downloading')
     btns = later;
   else if(u.phase === 'ready')
-    btns = `<button class="btn btn-primary" ${u.frozen?'':'disabled'}
+    btns = UP_ASK === 'apply'
+      ? `<button class="btn btn-primary" onclick="upApply()">${esc(t('up.askGo'))}</button>${cancel}`
+      : `<button class="btn btn-primary" ${u.frozen?'':'disabled'}
               onclick="upApply()">${esc(t('up.apply'))}</button>${later}`;
   else if(u.phase === 'error')
     btns = `<button class="btn btn-primary" onclick="upCheckNow()">${esc(t('up.recheck'))}</button>${later}`;
@@ -596,7 +611,7 @@ function upCardHtml(){
       <button class="up-x ic-btn" onclick="upClose()" data-tip-any="1"
         data-tip="${esc(t('up.close'))}" aria-label="${esc(t('up.close'))}">${ico('close')}</button></div>
     <div class="up-ver">${esc(t('up.nowOn', {v: u.local || ''}))}</div>
-    ${bar}${err}${notes}
+    ${bar}${err}${notes}${ask}
     <div class="up-btns">${btns}</div>`;
 }
 
@@ -610,6 +625,7 @@ window.upOpen = function(){
 };
 window.upClose = function(){
   const c = document.getElementById('upCard'); if(!c || c.hidden) return;
+  UP_ASK = '';
   c.hidden = true;
   document.body.classList.remove('up-on');
 };
@@ -620,8 +636,13 @@ window.upRepaintDialog = function(){
   /* 下载中每 400ms 轮询一次。整块换 innerHTML 会把焦点从 ✕ 上踢掉，
      还会让你按下去的那一瞬正好赶上按钮被替换（点了没反应）。
      所以只有阶段真的变了才重画结构，否则只改进度条宽度和那行字节数。 */
-  if(c.dataset.phase !== UP.phase){
+  if(c.dataset.phase !== UP.phase || c.dataset.ask !== UP_ASK){
+    /* 上膛/退膛不换 phase，只换那一行确认和按钮 —— 只按 phase 判断的话，
+       点「安装并重启」会毫无反应，用户只能再点一次，然后以为程序卡住了。
+       阶段真的变了就顺手退膛：下载完成时不该还停在「确认下载」那一行。 */
+    if(c.dataset.phase !== UP.phase) UP_ASK = '';
     c.dataset.phase = UP.phase;
+    c.dataset.ask = UP_ASK;
     c.innerHTML = upCardHtml();
     return;
   }
@@ -631,18 +652,28 @@ window.upRepaintDialog = function(){
   if(fill) fill.style.width = pct + '%';
   if(mbEl) mbEl.textContent = mb(UP.got||0) + ' / ' + mb(UP.size||0);
 };
+function upArm(what){
+  UP_ASK = what;
+  window.upRepaintDialog();
+  const b = document.querySelector('#upCard .up-btns .btn-primary');
+  if(b) b.focus();   // 上膛后焦点落在真正会执行的那颗上，键盘用户不必再 Tab 一次
+}
+window.upAskCancel = function(){ UP_ASK = ''; window.upRepaintDialog(); };
 window.upDownload = async function(){
   const n = (UP && UP.active_runs) || 0;
-  if(n > 0 && !confirm(t('up.busyConfirm', {n}))) return;
+  if(n > 0 && UP_ASK !== 'download'){ upArm('download'); return; }
+  UP_ASK = '';
   UP = await post('/api/update/download').catch(()=>({phase:'error', error:t('up.reqFail')}));
   paintUpdate(); upPoll();
   if(UP && UP.phase === 'error') toast(UP.error);
 };
 window.upApply = async function(){
-  if(!confirm(t('up.applyGo', {v: (UP && UP.latest) || ''}))) return;
-  const n = (UP && UP.active_runs) || 0;
-  if(n > 0 && !confirm(t('up.busyConfirm', {n}))) return;
+  if(UP_ASK !== 'apply'){ upArm('apply'); return; }   // 第一下只上膛，把"要退出"说在按钮上方
   const r = await post('/api/update/apply').catch(e=>({detail:String(e)}));
+  /* 成败都把膛退掉并重画。以前是发请求前先清标记，失败时浮层还停在「确认安装并退出」
+     那两颗按钮上 —— 再点一次只是重新上膛，画面不动，看着就像按钮坏了。 */
+  UP_ASK = '';
+  window.upRepaintDialog();
   if(r && r.detail){ toast(r.detail); return; }
   toast(t('up.applyStarted'), true);
 };
@@ -1286,12 +1317,13 @@ function secUpdate(){
 }
 
 window.applyUpdate = async function(){
-  const u = ST.update || {};
-  if(!confirm(t('up.applyGo', {v: u.latest || ''}))) return;
-  const r = await post('/api/update/apply').catch(e=>({ok:false, detail:String(e)}));
-  // 成功时后端也带 detail（"正在安装并退出…"），所以只能按 ok 判，不能按有没有 detail 判
-  if(r && r.ok === false){ toast(r.detail, false); return; }
-  toast((r && r.detail) || t('up.applyStarted'), true);
+  /* 设置页这颗按钮不再自己弹一套确认 —— 确认只有一处形状：居中浮层里那一行后果说明。
+     所以它做的事是打开浮层并直接上膛，第二下才算数。 */
+  if(!UP) UP = ST.update || null;
+  if(!UP || !UP.frozen){ toast(t('up.applyNo')); return; }
+  const c = document.getElementById('upCard');
+  if(!c || c.hidden) window.upOpen();
+  upArm('apply');
 };
 
 const MB1024 = 1048576;

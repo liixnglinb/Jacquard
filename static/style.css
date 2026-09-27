@@ -639,6 +639,13 @@ body.up-on .up-card{opacity:1;transform:translate(-50%,-50%);pointer-events:auto
 .up-notes{font-size:var(--fs-meta);color:var(--ink-2);margin-top:10px;line-height:1.55;
   max-height:132px;overflow-y:auto;white-space:pre-line;
   border-left:2px solid var(--line-strong);padding-left:9px}
+/* 两步确认那一行：后果写在按钮上方，而不是弹一个顶着「127.0.0.1:8000 显示」的系统框。
+    treatment 跟 .up-notes 同族（一条左线，不铺底）—— 实测铺上 --bg-sunken 那 5% 白之后，
+   警示红压在上面只有 3.82:1，掉到 4.5 以下；线不改变文字底色，就没这个问题。 */
+.up-ask{margin-top:12px;padding-left:9px;border-left:2px solid var(--line-strong);
+  font-size:var(--fs-meta);line-height:1.5;color:var(--ink)}
+.up-ask b{font-weight:600}
+.up-ask-warn{margin-top:4px;color:var(--bad)}
 .up-btns{display:flex;gap:8px;margin-top:16px}
 
 /* 侧栏搜索面板 */

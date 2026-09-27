@@ -466,10 +466,13 @@ def test_update_dialog_shows_real_progress_and_no_fake_buttons():
     assert "mb(u.got" in seg and "mb(u.size" in seg, "缺「已传 / 共」读数"
     for fake in ("取消下载", "跳过此版本", "skipVersion", "cancelDownload", "自动下载"):
         assert fake not in seg, f"{fake} 是假按钮：后端没有这个端点"
-    # 更新会退出进程，所以在跑/停在检查点的任务要先拦住（下载和安装两处都要）
-    acts = APP_JS.split('window.upDownload')[1].split('window.upCheckNow')[0]
-    assert "up.busyConfirm" in acts and acts.count("up.busyConfirm") >= 2, \
-        "download / apply 两处至少要各拦一次"
+    # 更新会退出进程，所以在跑/停在检查点的任务要先拦住（下载和安装两处都要）。
+    # 拦的形状从"弹系统框问一句"换成了"第一下只上膛"：不 POST，先把后果摆在按钮上方。
+    dl = APP_JS.split('window.upDownload = async function')[1].split('\n};')[0]
+    ap = APP_JS.split('window.upApply = async function')[1].split('\n};')[0]
+    assert "upArm('download')" in dl and "active_runs" in dl, "下载前不再看在跑的任务了"
+    assert "upArm('apply')" in ap and "await post" in ap, "安装要么没上膛、要么根本没发请求"
+    assert ap.index("upArm('apply')") < ap.index("await post"), "第一下就发请求，等于没有确认这一步"
 
 
 def test_update_dialog_refreshes_with_the_poller_and_closes_on_escape():
@@ -511,6 +514,47 @@ def test_closed_modal_mask_does_not_swallow_clicks():
     assert "pointer-events:none" in mask, "遮罩收起时没关指针，会吃掉全屏点击"
     on = CSS.split("body.up-on .up-mask{")[1][:120]
     assert "pointer-events:auto" in on, "展开时又忘了把指针还给遮罩"
+
+
+def test_update_flow_has_no_native_confirm_dialog():
+    """原生 confirm() 在 WebView2 里顶着一句「127.0.0.1:8000 显示」—— 那是在报
+    开发服务器来源，不是软件名字；按钮是系统蓝，跟黑白品牌无关；位置还和居中浮层
+    脱节。装更新这一步会**退出程序**，最该说清楚的地方长得最不像这个软件。"""
+    for fn in ("window.upApply = async function", "window.upDownload = async function",
+               "window.applyUpdate = async function"):
+        seg = APP_JS.split(fn)[1].split("\n};")[0]
+        assert "confirm(" not in seg, f"{fn} 还在弹原生确认框"
+
+
+def test_update_confirm_lives_in_the_card_and_says_what_it_costs():
+    """两步确认在浮层内部完成：第一次点只是"上膛"，重画出一行后果说明再点才算数。
+    原来那两记 confirm（退出 + 有任务在跑）是连着弹两个，现在并成一行。"""
+    card = APP_JS.split("function upCardHtml(")[1].split("\n}\n")[0]
+    assert 'class="up-ask"' in card, "确认那一行没进浮层"
+    for key in ("up.askApply", "up.askDownload", "up.askBusyQuit", "up.askBusyDl", "up.askGo"):
+        assert f"'{key}'" in card, f"缺文案 {key}"
+    assert ".up-ask{" in CSS and ".up-ask-warn{" in CSS, "样式没落地，那一行会挤成一行字"
+    body = CSS.split(".up-ask-warn{")[1].split("}")[0]
+    assert "var(--bad)" in body, "打断在跑任务是这件事的代价，要用警示色而不是同一级灰"
+
+
+def test_update_confirm_arms_repaints_and_disarms():
+    """arm 状态变了但 phase 没变 —— 重画逻辑只认 phase 的话，按钮点下去什么都不发生。
+    关掉浮层、换阶段、真的开始装了，三种情况都得把膛退掉，否则下次打开还停在确认行。"""
+    rp = APP_JS.split("window.upRepaintDialog = function()")[1].split("\n};")[0]
+    assert "dataset.ask" in rp, "重画只看 phase，上膛后不会换按钮"
+    assert APP_JS.count("UP_ASK = ''") >= 3, "退膛的地方不够（关闭 / 换阶段 / 已发请求）"
+    assert "window.upAsk" in APP_JS, "缺上膛入口"
+
+
+def test_failed_apply_does_not_leave_a_dead_confirm_button():
+    """发请求前先清标记的话，失败后浮层还画着「确认安装并退出」，可标记已经空了 ——
+    再点一下只是重新上膛、画面纹丝不动，用户读到的是"这个按钮坏了"。
+    源码态必现：后端直接回"没有可替换的程序"。"""
+    ap = APP_JS.split("window.upApply = async function")[1].split("\n};")[0]
+    assert ap.index("UP_ASK = ''") > ap.index("await post"), "清标记不该在发请求之前"
+    assert "upRepaintDialog()" in ap[ap.index("await post"):], "失败后没重画，按钮停在假状态"
+
 
 # ---------------- 侧栏折叠轨道 ----------------
 
