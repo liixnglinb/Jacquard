@@ -2,7 +2,7 @@
 """生成 assets/loom.ico 与配套 PNG，并写出 static/ 下那三个 SVG（同一套数值）。
 
 为什么用代码画而不是转 SVG：本机没有 cairosvg / inkscape，而这个图标只有
-圆角方块 + 两个矩形，按 SVG 里的坐标复画比引一个渲染依赖更可控。
+圆角方块 + 三个矩形（竖笔 / 横脚 / 钩尖），按 SVG 里的坐标复画比引一个渲染依赖更可控。
 
 小尺寸不是从大图缩出来的。16/20/24/32/40 各自按目标像素网格硬对齐来画：
 一根 2px 的笔画缩到半像素上，任务栏里就是一条灰边。每档的圆角和笔画宽度
@@ -31,22 +31,29 @@ LIGHT = (0xFF, 0xFF, 0xFF)
 # 偏心柔光（光心在左上，半径给到 0.92 个画布，所以边界完全落在砖外，看不到弧）。
 # **只加在大尺寸上**：16~40 那五档是硬对齐到像素网格的平涂，光场在那儿只会变成脏。
 SHEEN_CX, SHEEN_CY, SHEEN_R, SHEEN_A = 0.30, 0.16, 0.92, 0.16
-# 母版几何（viewBox 120）：竖笔 + 横脚两个矩形拼，交集处重叠不会露缝
-STEM = (34, 26, 50, 94)
-FOOT = (34, 78, 88, 94)
+# 母版几何（viewBox 120）：竖笔 + 横脚 + 钩尖三个矩形拼。
+# 2026-09-27 随改名（Loom → Jacquard）把原来的 L **水平镜像**成 J：
+# 无衬线 J 就是"右侧竖笔 + 底部左钩"，镜像能原样保住每一档量过的笔画宽度、
+# 高度和光学居中（L 左重所以偏右，镜像后右重所以偏左，同一套偏移自动反过来）。
+# HOOK 是钩尖起的那一段 —— 没有它，256 上读起来更像"直角括号"而不是 J。
+# 实测它在 16px 上仍留 5 列负空间（糊掉的阈值是 2 列），所以五档小尺寸都给。
+STEM = (70, 26, 86, 94)
+FOOT = (32, 78, 86, 94)
+HOOK = (32, 62, 48, 94)
 
 ICO_SIZES = [16, 20, 24, 32, 40, 48, 64, 128, 256]
 
 # 小尺寸全部按整数像素各自定，坐标是 (x0,y0,x1,y1) 闭区间。
 # 为什么不一律缩放原几何：16px 上母版那 14/120 的笔画只剩 1.87px，落在半个像素上，
 # 任务栏里就是一条灰边。每一档的笔画都取整数（16/20 用 2px，24 用 3px，32/40 用 5~6px），
-# 并且让 L 的包围盒在画布里光学居中（L 左重，所以整体比几何中心略偏右）。
+# 并且让记号的包围盒在画布里光学居中（J 右重，所以整体比几何中心略偏左）。
+# 这套数是 L 那版逐档镜像过来的，钩尖宽度取竖笔同宽、高度 n*0.16 起（最少 3 列）。
 SMALL = {
-    16: dict(tile_r=3, stem=(4, 3, 5, 12), foot=(4, 11, 12, 12)),
-    20: dict(tile_r=4, stem=(5, 4, 7, 16), foot=(5, 14, 15, 16)),
-    24: dict(tile_r=5, stem=(6, 4, 9, 19), foot=(6, 16, 18, 19)),
-    32: dict(tile_r=7, stem=(9, 6, 13, 26), foot=(9, 22, 24, 26)),
-    40: dict(tile_r=9, stem=(11, 7, 17, 33), foot=(11, 28, 30, 33)),
+    16: dict(tile_r=3, stem=(10, 3, 11, 12), foot=(3, 11, 11, 12), hook=(3, 8, 4, 11)),
+    20: dict(tile_r=4, stem=(12, 4, 14, 16), foot=(4, 14, 14, 16), hook=(4, 11, 6, 14)),
+    24: dict(tile_r=5, stem=(14, 4, 17, 19), foot=(5, 16, 17, 19), hook=(5, 12, 8, 16)),
+    32: dict(tile_r=7, stem=(18, 6, 22, 26), foot=(7, 22, 22, 26), hook=(7, 17, 11, 22)),
+    40: dict(tile_r=9, stem=(22, 7, 28, 33), foot=(9, 28, 28, 33), hook=(9, 22, 15, 28)),
 }
 
 
@@ -93,7 +100,7 @@ def build(size: int = SIZE, samples: int = 4) -> Image.Image:
 
     d = ImageDraw.Draw(img)
     k = size / 120.0 * samples
-    for x0, y0, x1, y1 in (STEM, FOOT):
+    for x0, y0, x1, y1 in (STEM, FOOT, HOOK):
         d.rectangle([x0 * k, y0 * k, x1 * k - 1, y1 * k - 1], fill=LIGHT + (255,))
     if samples > 1:
         img = img.resize((size, size), Image.LANCZOS)
@@ -117,7 +124,7 @@ def build_snapped(n: int) -> Image.Image:
     # 整数倍 BOX 降采样就是纯面积平均，不会像 LANCZOS 那样在轮廓外侧振出一圈灰边
     img = tile.resize((n, n), Image.BOX)
     d = ImageDraw.Draw(img)
-    for box in (g["stem"], g["foot"]):
+    for box in (g["stem"], g["foot"], g["hook"]):
         d.rectangle(box, fill=LIGHT + (255,))
     return img
 
@@ -156,6 +163,8 @@ def svg_master() -> str:
         f' height="{STEM[3] - STEM[1]}" fill="#FFFFFF"/>\n'
         f'  <rect x="{FOOT[0]}" y="{FOOT[1]}" width="{FOOT[2] - FOOT[0]}"'
         f' height="{FOOT[3] - FOOT[1]}" fill="#FFFFFF"/>\n'
+        f'  <rect x="{HOOK[0]}" y="{HOOK[1]}" width="{HOOK[2] - HOOK[0]}"'
+        f' height="{HOOK[3] - HOOK[1]}" fill="#FFFFFF"/>\n'
         '</svg>\n')
 
 
@@ -165,7 +174,7 @@ def svg_snapped(n: int) -> str:
     大图那套原样留在 logo.svg，这里只是同一个记号的小尺寸版本。"""
     g = SMALL[n]
     body = [f'<rect width="{n}" height="{n}" rx="{g["tile_r"]}" fill="url(#loom)"/>']
-    for x0, y0, x1, y1 in (g["stem"], g["foot"]):
+    for x0, y0, x1, y1 in (g["stem"], g["foot"], g["hook"]):
         body.append(f'<rect x="{x0}" y="{y0}" width="{x1 - x0 + 1}"'
                     f' height="{y1 - y0 + 1}" fill="#FFFFFF"/>')
     parts = body + ['</svg>']

@@ -47,10 +47,13 @@ def test_ico_declares_every_size_it_actually_carries():
 
 
 @pytest.mark.parametrize("n", [16, 20, 24, 32, 40])
-def test_small_marks_read_as_an_l(n):
+def test_small_marks_read_as_a_j(n):
     """黑底白字标在任务栏上的可读条件：竖笔至少 2 列、横脚至少是竖笔的两倍宽、
-    记号高度占画面一半以上，而且竖笔与横脚左端对齐（否则就成了 T 或 I）。
-    缩略图糊掉通常不是"认不出是 L"，而是竖笔先没 —— 所以盯的是最窄那一行。"""
+    记号高度占画面一半以上。2026-09-27 字标从 L 水平镜像成 J（随改名），于是
+    "对齐"那条从左边换到**右边**：竖笔与横脚右端齐，否则就成了 T 或 I。
+    还多了一条 J 才有的判据 —— 钩尖与竖笔之间那段负空间至少 2 列，
+    少了它 16px 上就连成一坨（实测各档都有 5~6 列）。
+    缩略图糊掉通常不是"认不出是哪个字母"，而是竖笔先没 —— 所以盯最窄那一行。"""
     px = _frames()[n][0].load()
 
     def light(x, y):
@@ -63,8 +66,28 @@ def test_small_marks_read_as_an_l(n):
     stem = min(len(r) for r in glyph)
     foot = max(len(r) for r in glyph)
     assert stem >= 2, f"{n}px 竖笔只有 {stem} 列，任务栏上会先没"
-    assert foot >= stem * 2, f"{n}px 横脚 {foot} 列 / 竖笔 {stem} 列，读不出是 L"
-    assert glyph[0][0] == glyph[-1][0],         f"{n}px 竖笔左端 {glyph[0][0]} 与横脚左端 {glyph[-1][0]} 不齐"
+    assert foot >= stem * 2, f"{n}px 横脚 {foot} 列 / 竖笔 {stem} 列，读不出是 J"
+    assert glyph[0][-1] == glyph[-1][-1],         f"{n}px 竖笔右端 {glyph[0][-1]} 与横脚右端 {glyph[-1][-1]} 不齐"
+
+    # 钩尖：找一行里出现两段独立笔画的，量它们之间的黑列数
+    gaps = []
+    for y in range(n):
+        runs, start = [], None
+        prev = None
+        for x in range(n):
+            if light(x, y):
+                if start is None:
+                    start = x
+                prev = x
+            elif start is not None:
+                runs.append((start, prev))
+                start = None
+        if start is not None:
+            runs.append((start, prev))
+        if len(runs) >= 2:
+            gaps.append(runs[1][0] - runs[0][1] - 1)
+    assert gaps, f"{n}px 上没有一行出现两段笔画 —— 钩尖丢了，字标退回成了直角括号"
+    assert min(gaps) >= 2, f"{n}px 钩尖与竖笔之间只剩 {min(gaps)} 列，会连成一坨"
 
 
 def test_small_favicons_are_exported_for_the_browser_tab():
@@ -90,9 +113,11 @@ def test_generated_small_svg_matches_the_snapped_table():
 
     svg = (STATIC / "logo-sm.svg").read_text(encoding="utf-8")
     g = make_icon.SMALL[20]
-    for x0, y0, x1, y1 in (g["stem"], g["foot"]):
+    for x0, y0, x1, y1 in (g["stem"], g["foot"], g["hook"]):
         frag = f'<rect x="{x0}" y="{y0}" width="{x1 - x0 + 1}" height="{y1 - y0 + 1}" fill="#FFFFFF"/>'
         assert frag in svg, f"logo-sm.svg 与 SMALL[20] 漂了，缺：{frag}"
+    # 反向也要钉：SVG 里的白矩形数量必须和表一致，多一块少一块都算漂
+    assert svg.count('fill="#FFFFFF"') == 3, svg.count('fill="#FFFFFF"')
 
 
 def _row_halves(img, y, xl, xr):
