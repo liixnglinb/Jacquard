@@ -7,7 +7,7 @@
 ;   3. 安装前温和关闭正在运行的 Loom（先不带 /F，等不动再强杀）
 ;   4. 卸载后残留的 data/ 在卸载页给一句明确提示，别让人以为数据没了
 
-#define MyAppName "织流 Loom"
+#define MyAppName "织流 Jacquard"
 #define MyAppExe "Loom.exe"
 #define MyAppPublisher "liixnglinb"
 #ifndef MyAppVersion

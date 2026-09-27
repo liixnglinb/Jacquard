@@ -57,18 +57,23 @@ def test_shell_surfaces_carry_the_new_name():
         ("make_release.py", 'f"织流 Jacquard {ver}"'),
         ("run.py", 'Jacquard 织流 启动'),
         ("run.py", '旧 Jacquard 进程'),
+        ("installer.iss", '#define MyAppName "织流 Jacquard"'),
     ]
     for rel, frag in checks:
         assert frag in _read(rel), f"{rel} 里找不到 {frag!r}"
 
 
 def test_deliberately_unchanged_identifiers_stay_loom():
-    """改名**刻意**没动的三样，反过来钉住：动它们会伤到已装的人，不是遗漏。
-    ① 安装包产物名与 COS key ② 安装目录 ③ 命名互斥体。"""
+    """改名**刻意**没动的四样，反过来钉住：动它们会伤到已装的人，不是遗漏。
+    ① 安装包产物名与 COS key ② 安装目录 ③ 命名互斥体 ④ 升级身份 AppId 与 exe 名。
+    AppId 是 Inno 认"这是同一个程序"的依据，动了它 1.2.6 就不再替换 1.2.5，
+    「添加或删除程序」里会留两个条目 —— 所以才只换 MyAppName（显示名）。"""
     assert 'APP = "Loom"' in _read("make_release.py")
     assert "LoomZhiLiu.SingleInstance" in _read("loom_launch.py")
     iss = _read("installer.iss")
     assert re.search(r"Programs\\\\Loom|Programs\\Loom", iss), "安装目录不该跟着改名"
+    assert 'AppId={{7C1D4E9A-2B6F-4C38-9A51-LOOMFLOW0100}' in iss
+    assert '#define MyAppExe "Loom.exe"' in iss
 
 
 def test_skill_source_vocabulary_is_the_stored_contract():
