@@ -262,6 +262,11 @@ def _run_window(port: int) -> bool:
                                     width=1440, height=900, min_size=(980, 620),
                                     frameless=True, easy_drag=True, js_api=api)
         api._attach(win)
+        # 装更新时不能 os._exit：那会跳过所有清理，WebView2 的子进程和本地服务都还
+        # 占着安装目录里的文件，安装器就只能靠 Windows 去"关应用"（用户看到的系统弹窗）。
+        # 交出去销毁窗口这条路：destroy() 之后 webview.start() 返回，main() 正常走完。
+        from app import updater            # app 包要到这一步才保证 import 得动
+        updater.set_quit_hook(win.destroy)
         webview.start()
         return True
     except Exception as e:

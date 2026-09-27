@@ -9,6 +9,7 @@
 安装器会自己关掉正在运行的 Loom，装完再由用户重启。源码运行时
 没有"自身"可换，这条路直接明确报错，不假装成功。
 """
+import atexit
 import hashlib
 import os
 import re
@@ -78,7 +79,7 @@ def sweep_leftovers() -> int:
                 continue
             if keep and str(f.resolve()) == keep:
                 continue        # 已经下好、等着被装的那一个不动它
-            if f.suffix.lower() not in (".exe", ".bat", ".tmp"):
+            if f.suffix.lower() not in (".exe", ".bat", ".tmp", ".flag"):
                 continue
             f.unlink()
             n += 1
@@ -269,17 +270,30 @@ def start_download() -> dict:
 
 
 BAT_TMPL = """@echo off
-rem Loom 更新脚本：等主进程退出 -> 静默安装 -> 装完把安装包和自己也删掉
-rem 等待用 ping 不用 timeout：timeout 在标准输入被重定向时（我们是用 DETACHED_PROCESS
-rem 起的，就是这种）不睡、直接报错返回。实测整段脚本 0.69 秒就往下走，而主进程是
-rem 0.8 秒后才 os._exit —— "等主进程退场"那三秒其实是 0 秒，安装器一上来就在换
-rem 一个还没退出的程序（能装上，靠的是 /CLOSEAPPLICATIONS 兜底，不是设计）。
-ping -n 4 127.0.0.1 >nul 2>&1
+rem 更新脚本：等主进程真的收尾完成 -> 静默安装 -> 装完把安装包和自己也删掉
+rem 等的是"那个标记文件出现了"，不是"过了 N 秒"。以前是 ping 盲睡三秒，两头都不对：
+rem 睡少了安装器撞上还没退出的程序，只能让 Inno 去请系统关应用（用户看到的弹窗）；
+rem 睡多了进程早就没了还白等。
+rem 为什么不是按 PID 轮询：tasklist 的输出要在批处理里解析，而这台机器上 PATH 里的
+rem find 是 Git Bash 的 coreutils 版（实测直接把整段等待判成"进程已不在"）——
+rem 一个装更新的东西不该把正确性押在 PATH 顺序和地区设置上。
+rem 上限 20 次是防主进程压根没走到收尾（崩在退出路上）时永远卡住。
+set "FLAG={flag}"
+set /a tries=0
+:wait
+if exist "%FLAG%" goto :go
+set /a tries+=1
+if %tries% geq 20 goto :go
+ping -n 2 127.0.0.1 >nul 2>&1
+goto :wait
+:go
+del "%FLAG%" >nul 2>&1
+rem 不再传那个"关应用"的开关：安装器不该伸手关别人的进程，我们自己已经退干净了。
 rem 安装器直接当子进程调用，不用 start /wait：cmd 等子进程结束、退出码照实传回来。
 rem 换这个不是因为它坏了（真 PE 桩下两种写法删/留都对），是少一个会骗人的环节：
-rem start /wait 对批处理桩根本不返回，%errorlevel% 留空，`if %errorlevel% neq 0`
-rem 当场语法错 —— 哪天有人把这里指向一个 .cmd，它就是静默的错。
-"{setup}" /SILENT /NORESTART /SUPPRESSMSGBOXES /CLOSEAPPLICATIONS
+rem start /wait 对批处理桩根本不返回，errorlevel 留空，判错那行当场语法错 ——
+rem 哪天有人把这里指向一个 .cmd，它就是静默的错。
+"{setup}" /SILENT /NORESTART /SUPPRESSMSGBOXES
 if errorlevel 1 goto :keep
 rem 只有装成功才删。这两行以前没有：以前只删脚本自己，那个 60MB 的 setup.exe
 rem 一直躺在 data\\updates 里，每升一级多一个，而没有任何界面看得见它。
@@ -287,6 +301,48 @@ del "{setup}" >nul 2>&1
 del "%~f0" >nul 2>&1
 :keep
 """
+
+
+_APPLY_STARTED = False
+_QUIT_HOOK = None
+
+
+def quit_flag_path() -> Path:
+    return updates_dir() / "quit.flag"
+
+
+def set_quit_hook(fn) -> None:
+    """打包壳把"怎么干净退出"注册进来（销毁窗口 → webview.start() 返回 → 正常收尾）。
+
+    没有这一步就只能 `os._exit`，那是跳过一切清理：WebView2 的子进程和本地服务
+    都没被告知要收，安装目录里的文件锁就这么留着了。"""
+    global _QUIT_HOOK
+    _QUIT_HOOK = fn
+
+
+def _signal_done() -> None:
+    """告诉那个还在等的批处理："我这边收完了，可以换了"。"""
+    try:
+        p = quit_flag_path()
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text("done", encoding="ascii")
+    except OSError:
+        pass
+
+
+def _quit() -> None:
+    fn = _QUIT_HOOK
+    if fn is None:
+        # 退回浏览器那条路没有窗口可销毁，只能硬退。此时进程里没有 WebView2 子进程，
+        # 残留的锁只有解释器自己加载的那几个，比有壳的情况轻得多。
+        _signal_done()
+        os._exit(0)
+        return
+    try:
+        fn()
+    except Exception:
+        _signal_done()
+        os._exit(0)
 
 
 def _sha256_of(path: Path) -> str:
@@ -302,9 +358,13 @@ def apply_update() -> dict:
 
     只在打包态可用：源码运行没有"被替换的 exe"，这里返回错误而不是演一遍。
     """
+    global _APPLY_STARTED
     s = snapshot()
     if not s["frozen"]:
         return {"ok": False, "detail": "源码运行没有可替换的程序，请用安装包装新版本"}
+    if _APPLY_STARTED:
+        # 点两下不该起两个 BAT：第二个会去删第一个正在用的那个包。
+        return {"ok": True, "message": "已经在装了，程序马上退出"}
     if s["phase"] != "ready" or not s["path"] or not Path(s["path"]).is_file():
         return {"ok": False, "detail": "还没有下载完成的安装包"}
     # ready 只是内存里的一个标志：从"校验通过"到"点安装"之间可以隔任意久，
@@ -325,17 +385,30 @@ def apply_update() -> dict:
         return {"ok": False, "detail": f"读不到安装包：{e}"}
     exe = Path(sys.executable)
     bat = updates_dir() / "update.bat"
-    bat.write_text(BAT_TMPL.format(setup=str(s["path"]).replace('"', "")), encoding="mbcs")
+    flag = quit_flag_path()
+    try:
+        flag.unlink(missing_ok=True)      # 上一次没走到收尾留下的残旗，会把这一次直接放行
+    except OSError:
+        pass
+    bat.write_text(BAT_TMPL.format(setup=str(s["path"]).replace('"', ""),
+                                   flag=str(flag)), encoding="mbcs")
     flags = 0
     if os.name == "nt":
         # DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP | CREATE_NO_WINDOW
         flags = 0x00000008 | 0x00000200 | 0x08000000
+    _APPLY_STARTED = True
+    # 进程真正要没了的最后一刻才举旗：atexit 跑在 webview.start() 返回、main() 走完
+    # 之后，那时 WebView2 的子进程已经被拆掉，文件锁才是真的放了。
+    atexit.register(_signal_done)
     try:
         subprocess.Popen(["cmd", "/C", str(bat)], creationflags=flags,
                          close_fds=True, cwd=str(paths.DATA_DIR))
     except Exception as e:
+        _APPLY_STARTED = False
         return {"ok": False, "detail": f"启动安装程序失败：{e}"}
-    threading.Timer(0.8, lambda: os._exit(0)).start()
+    # 延后一拍再退：这句要先进 HTTP 响应、前端要先把"正在安装"画出来，
+    # 而销毁窗口必须在 UI 那条循环上跑，不能在请求线程里直接拆。
+    threading.Timer(0.4, _quit).start()
     # detail 在这个应用里就是"出错"的键（前端一律 if(r.detail) 弹红条），
     # 成功那句话要是也放这儿，装上之后会看到一条红色报错。
     return {"ok": True, "message": f"正在安装并退出，稍后从 {exe.name} 重新启动即可"}

@@ -34,7 +34,10 @@ WizardStyle=modern
 RestartApplications=no
 UninstallDisplayName={#MyAppName}
 UninstallDisplayIcon={app}\{#MyAppExe}
-CloseApplications=yes
+; 别让 Inno 请 RestartManager 去关"占着文件的程序"：那会弹系统级的"正在关闭应用/
+; 结束任务"框（2026-09-27 装机实测，一次会话跑了 13 秒）。退出是程序自己的事，
+; 见 app/updater.py 的退出钩子与 update.bat 里按 PID 等待那一段。
+CloseApplications=no
 
 [Languages]
 Name: "chinesesimplified"; MessagesFile: "compiler:Languages\ChineseSimplified.isl"
