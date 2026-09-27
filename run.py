@@ -65,7 +65,7 @@ def diagnose_start_error(err) -> str:
     return f"启动失败：{s}"
 
 
-STALE_HINT = "检测到旧 Loom 进程仍占用端口，正在自动结束并重启…"
+STALE_HINT = "检测到旧 Jacquard 进程仍占用端口，正在自动结束并重启…"
 
 
 def main():
@@ -113,7 +113,7 @@ def main():
             sys.exit(1)
 
     import uvicorn
-    print(f"Loom 织流 启动: http://127.0.0.1:{port}")
+    print(f"Jacquard 织流 启动: http://127.0.0.1:{port}")
     try:
         uvicorn.run("app.main:app", host="127.0.0.1", port=port, reload=False)
     except Exception as e:

@@ -136,9 +136,9 @@ def test_codex_args_omit_effort_when_auto(monkeypatch, tmp_path):
     assert 'model="' not in args             # 没填模型就别越权指定
 
 
-def test_provider_display_name_is_loom_not_flowforge(monkeypatch, tmp_path):
+def test_provider_display_name_follows_the_brand_not_the_old_names(monkeypatch, tmp_path):
     args = " ".join(agents._codex_args(tmp_path, None, "", "https://k/v1", "k", ""))
-    assert 'name="Loom"' in args
+    assert 'name="Jacquard"' in args
     assert "FLOWFORGE_API_KEY" in args       # 环境变量名是内部契约，改名要同步
 
 

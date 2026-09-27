@@ -19,7 +19,7 @@ from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from pydantic import BaseModel
 from . import agents, cli_inventory, db, llm, paths, pipelines, runner, updater
 
-app = FastAPI(title="Loom 织流")
+app = FastAPI(title="Jacquard 织流")
 
 STATIC = paths.STATIC_DIR
 app.mount("/static", StaticFiles(directory=str(STATIC)), name="static")

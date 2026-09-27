@@ -393,7 +393,7 @@ def _codex_args(ws: Path, system_file: Path | None, model: str,
             base += "/v1"
         args += [
             "-c", f'model_provider="{_CODEX_PROVIDER}"',
-            "-c", f'model_providers.{_CODEX_PROVIDER}.name="Loom"',
+            "-c", f'model_providers.{_CODEX_PROVIDER}.name="Jacquard"',
             "-c", f'model_providers.{_CODEX_PROVIDER}.base_url="{base}"',
             "-c", f'model_providers.{_CODEX_PROVIDER}.env_key="FLOWFORGE_API_KEY"',
             # 0.154 的 codex 直接拒绝 chat：二进制里写着

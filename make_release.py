@@ -131,7 +131,7 @@ def main() -> int:
 
     manifest = {"version": ver, "url": f"{URL_BASE}/{setup.name}",
                 "file": setup.name, "sha256": digest, "size": size,
-                "notes": a.notes or f"织流 Loom {ver}"}
+                "notes": a.notes or f"织流 Jacquard {ver}"}
     (REL / "latest.json").write_text(
         json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
     print(f"[release] latest.json -> {(REL/'latest.json').read_text(encoding='utf-8')}")

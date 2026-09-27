@@ -135,7 +135,15 @@ curl -s -A "Mozilla/5.0" https://lxlrwxs.top/modelflow/ | grep -o "Loom-[0-9.]*-
 ② `installer.iss` 的安装目录 `{localappdata}\Programs\Loom` 同理由不动；
 ③ 命名互斥体 `Local\LoomZhiLiu.SingleInstance` **不能改** —— 它的唯一作用就是拦住"两份程序写同一个
   SQLite"，改了名以后旧版 Loom 和新版 Jacquard 会同时起来，那正是它要防的事；
-④ 技能来源的**键值** `'loom'`（`skill_src` 存在流程 JSON 里）不动，只换了显示标签。
+④ 技能来源的**取值白名单** `("", "claude", "codex")` 不动（`app/pipelines.py`）—— 自家那份技能
+  在流程 JSON 里一直是**空串**，从来不是 `'loom'`，所以这个字段跟改名无关；换的只是翻译键
+  `ed.src.loom` 的**标签**（值已经是 Jacquard）。别为了"配合新名字"往白名单里塞 `'jacquard'`，
+  那会让存量流程的技能引用落空。
+**这一轮漏过、后来补上的五处**（都是显示层，当时没测钉着所以扫不出来）：codex 的 provider
+显示名 `name="Loom"`、`FastAPI(title=...)`（`/docs` 页头就是它）、`make_release.py` 的兜底
+`notes`（会进 latest.json，软件里的更新卡片和下载页都读那份）、源码启动横幅、端口占用提示。
+现在 `tests/test_brand_surface.py` 五档齐钉：译文全量扫（zh+en 要**分开取**，合并成字典会让 en
+悄悄盖掉 zh）+ 这五处逐个断言 + 上面三样刻意不动的反向钉。
 **图标字标同一轮已经跟着换成 J 了**（`make_icon.py`，2026-09-27）：竖笔靠右、底钩向左、
 钩尖再起一小段 —— 也就是"镜像 L + 钩"。以前我目测说"小尺寸会糊"，量下来不成立：16px 上钩尖
 留出的负空间有 5 列，而糊掉的阈值是 2 列，最小构件仍是 2px。口径没变：16/20/24/32/40 五档手工
@@ -391,12 +399,19 @@ PY="/c/Users/李星历/AppData/Local/Programs/Python/Python312/python.exe"
 
 # 1. 版本号 + 全量测试
 #    改 app/version.py，然后：
-PYTHONUTF8=1 "$PY" -m pytest -q
+#    别加第二个 -q：pytest.ini 的 addopts 已经带 -q，再叠一个就是 -qq，
+#    汇总行（"367 passed in 45s"）会被吞掉，你会以为自己没跑到。
+PYTHONUTF8=1 "$PY" -m pytest
 
 # 2. 打包（图标动过先跑 make_icon.py）
-PYTHONUTF8=1 "$PY" make_release.py --notes "这一版改了什么"
+PYTHONUTF8=1 "$PY" make_icon.py        # 只在图标/字标动过时跑，它一次生成全套落点
 
-# 3. 先提交源码（别先传包，失败了好回退）
+# 2b. 只要 static/ 下的文件内容变过，就得 bump 缓存令牌，否则装好的人端的是旧缓存
+#     （改图标这一轮就是这么差点没生效：logo-sm.svg 换了字标，?v= 还是旧的）
+sed -i "s/?v=<旧令牌>/?v=$(git rev-parse --short=8 HEAD)/g" static/index.html
+grep -c "?v=$(git rev-parse --short=8 HEAD)" static/index.html   # 应为 10
+
+# 3. 提交源码（别先传包，失败了好回退）
 git add -A && git commit -m "release: X.Y.Z —— …"
 unset GITHUB_TOKEN GH_TOKEN
 git -c http.curloptResolve=github.com:443:140.82.113.3 push origin main
