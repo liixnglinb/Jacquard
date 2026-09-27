@@ -201,6 +201,19 @@ COS 产物 key**（页里写死了 `Loom-1.2.6-setup.exe` 的直链）；`logo.s
 `D:\AI-Tools-Data\tmp\loom-installed\`（scratch 那份），而 `{localappdata}\Programs\Loom`
 至今不存在。想知道装到哪了，查 `HKCU\...\Uninstall\{7C1D4E9A-...}_is1` 的 InstallLocation。
 
+**同日第四批（用户要求"检测更新是否合规"后补的，未发版）**：对着他给的三条要求逐项量过，
+补上四处。① **进入软件自动检测到就自动下载**（原来要点了才下），三条检查路径（开机、
+胶囊重检、设置页重检）都接上；② **胶囊不再画下载小箭头**（"不要有下载的小箭头"），
+进度由百分比 + 进度条说；③ **悬停显示更新内容** —— 发版说明截 140 字（提示框只有 264px 宽），
+全文仍在浮层里；④ **装完自动重启**：`installer.iss` 的 `[Run]` 去掉 `skipifsilent`
+（我们是 `/SILENT` 装的，带着它就等于"装完窗口不回来"），确认文案同步改成
+「现在安装 v{v} 并重启？」。
+**同批还做了第二下载源**：清单新增 `mirrors` 字段（`make_release.py` 留空槽，
+`publish_github.py` 把包发到 GitHub Releases 并**回读通过之后**才回填）；软件下载前对每个候选
+发一次 128KB Range 请求量吞吐，按快的先用，**每个源下的东西都要过同一份 sha256**，
+不匹配就丢掉换下一个 —— 选源只决定顺序、不决定装什么。
+**没验的**：这批全是源码，要等下一次发版才到用户手上；GitHub 那台上传本机可能很慢。
+
 **验掉了一条、还剩一条**：① 打包态 `apply_update()`（替换自身）在 2026-09-27 第一次真跑了
 （下面那段历史留着，它记的是当时为什么只能拿桩测）。
 1.2.4 加的两件事（装成功后 `del` 那个 setup.exe、开机再扫一遍 `data/updates`）发完之后拿**真 PE 桩**
@@ -470,6 +483,11 @@ grep -c "?v=$(git rev-parse --short=8 HEAD)" static/index.html   # 应为 10
 
 # 2c. 打包
 PYTHONUTF8=1 "$PY" make_release.py --notes "这一版改了什么"
+
+# 2d. 把包发到 GitHub Releases 并回填清单的 mirrors（第二下载源）
+#     必须在 upload_cos 之前：只有 upload_cos 碰 COS，这一步只跟 gh 和本地清单打交道。
+#     回读不通过它就不写 mirrors —— 写进去等于告诉所有已装机器"这个源有包"。
+PYTHONUTF8=1 "$PY" publish_github.py
 
 # 3. 提交源码（别先传包，失败了好回退）
 git add -A && git commit -m "release: X.Y.Z —— …"

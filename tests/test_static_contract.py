@@ -516,6 +516,65 @@ def test_closed_modal_mask_does_not_swallow_clicks():
     assert "pointer-events:auto" in on, "展开时又忘了把指针还给遮罩"
 
 
+def test_update_box_carries_no_download_arrow():
+    """用户点名：「不要有下载的小箭头」。available 与 downloading 两态都不再画图标 ——
+    进度由百分比和进度条说，不需要一个箭头再说一遍"在下"。"""
+    v = APP_JS.split("function upView(")[1].split("\n}\n")[0]
+    assert v.count("ic:''") >= 2, "下载相关两态还挂着图标"
+    assert "ic:'download'" not in v and 'ic:"download"' not in v
+    pu = APP_JS.split("function paintUpdate(")[1].split("\n}\n")[0]
+    assert "v.ic ?" in pu, "图标 span 还是无条件渲染，去掉 ic 也还是会画出默认那颗"
+    i = pu.index("v.ic ?")
+    assert "'download'" not in pu[i:i + 90], "兜底值又把下载箭头放回来了"
+
+
+def test_hovering_the_box_shows_what_the_update_contains():
+    """用户点名：悬停要能看到更新的内容。发版说明在 STATE 里一直有，
+    以前只有点开浮层才看得到；提示框宽 264px，所以截断而不是整段塞。"""
+    assert "function upNoteTip(" in APP_JS
+    tip = APP_JS.split("function upNoteTip(")[1].split("\n}\n")[0]
+    assert "140" in tip and "notes" in tip, "没截断或没取 notes"
+    v = APP_JS.split("function upView(")[1].split("\n}\n")[0]
+    assert v.count("+ note") >= 3, "三态里有的没带上更新内容"
+
+
+def test_install_confirm_talks_about_restarting():
+    """用户的原话是"点击确认后，直接自动更新并重启"，所以文案里得是重启，
+    而不是上一版那句"装完要自己再打开"—— 行为改了之后那句话就是错的。"""
+    zh = _dict_block("zh")
+
+    def val(key):
+        m = re.search(rf"'{re.escape(key)}':\s*'([^']*)'", zh)
+        assert m, f"中文词典里找不到 {key}"
+        return m.group(1)
+
+    assert "并重启" in val("up.askApply"), val("up.askApply")
+    assert val("up.askGo") == "安装并重启"
+    assert "重启" in val("up.applyStarted"), val("up.applyStarted")
+    assert "自己再打开" not in val("up.askApply")
+    iss = (STATIC_DIR.parent / "installer.iss").read_text(encoding="utf-8")
+    # 只看真执行的行：注释里写着"不带 skipifsilent"这句话本身就会被子串判红 ——
+    # 这一轮已经被自己的注释绊过好几回了。
+    run = [ln for ln in iss.split("[Run]")[1].splitlines()
+           if ln.strip() and not ln.strip().startswith(";")]
+    assert not any("skipifsilent" in ln for ln in run), \
+        "又加上 skipifsilent 了：我们是 /SILENT 装的，装上之后窗口不会自己回来"
+
+
+def test_the_app_downloads_an_update_without_being_asked():
+    """用户的要求：进软件自动检测、检测到就下；点那一下只管"装不装"。
+    所以三条检查路径（开机、胶囊里重检、设置页重检）都要接上自动下载。"""
+    assert "async function upAutoDownload(" in APP_JS
+    init = APP_JS.split("async function upInit(")[1].split("\n}\n")[0]
+    assert "upAutoDownload()" in init, "开机那条路没接上"
+    cn = APP_JS.split("window.upCheckNow = async function")[1].split("\n};")[0]
+    assert "upAutoDownload()" in cn, "胶囊里重检没接上"
+    st = APP_JS.split("window.checkNow = async function")[1].split("\n};")[0]
+    assert "upAutoDownload()" in st, "设置页重检没接上"
+    auto = APP_JS.split("async function upAutoDownload(")[1].split("\n}")[0]
+    assert "available" in auto, "没判阶段就开下：已经在下的会被重复触发"
+
+
 def test_update_flow_has_no_native_confirm_dialog():
     """原生 confirm() 在 WebView2 里顶着一句「127.0.0.1:8000 显示」—— 那是在报
     开发服务器来源，不是软件名字；按钮是系统蓝，跟黑白品牌无关；位置还和居中浮层

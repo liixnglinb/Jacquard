@@ -54,8 +54,10 @@ Name: "{autoprograms}\{#MyAppName}"; Filename: "{app}\{#MyAppExe}"; Tasks: start
 Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExe}"; Tasks: desktopicon
 
 [Run]
+; 装完把程序拉起来 —— 不带 skipifsilent：我们的更新就是 /SILENT 跑的，
+; 带上它等于"更新完窗口不会回来"，用户得自己去开始菜单再点一次。
 Filename: "{app}\{#MyAppExe}"; Description: "立即启动 {#MyAppName}"; \
-  Flags: nowait postinstall skipifsilent runasoriginaluser
+  Flags: nowait postinstall runasoriginaluser
 
 [UninstallDelete]
 ; 只清运行期临时件；data\ 整个目录刻意留着（用户的流程、产物、自建 skill 都在里面）

@@ -18,6 +18,7 @@ import sys
 import threading
 import time
 from pathlib import Path
+from urllib.parse import urlparse
 
 import requests
 
@@ -35,6 +36,7 @@ STATE = {
     "notes": "",
     "url": "",
     "asset": "",
+    "mirrors": [],          # 清单给的同包镜像，下载时按实测速度排序
     "sha256": "",
     "size": 0,
     "got": 0,
@@ -206,12 +208,81 @@ def check(force: bool = False) -> dict:
              latest=latest, notes=str(m.get("notes") or "")[:2000],
              url=url if newer else "",
              asset=asset if newer else "",
+             mirrors=_manifest_mirrors(m, url, asset) if newer else [],
              sha256=sha if newer else "",
              size=size if newer else 0, got=0, path="",
              checked_at=time.strftime("%Y-%m-%d %H:%M:%S"))
     except Exception as e:
         _set(phase="error", error=str(e)[:300])
     return snapshot()
+
+
+def _manifest_mirrors(m: dict, url: str, asset: str) -> list:
+    """清单里的镜像列表 → 可用的候选。镜像只是"同一个包的另一个地址"，
+    所以只收 https、且**文件名必须与主地址一致** —— 否则它就能把包换成别的东西、
+    或者借路径把我们写到别处去。主地址自己、重复项、非字符串一律剔掉。
+    上限 4 个：每多一个就多一次测速往返，收益早就没了。"""
+    out = []
+    for u in (m.get("mirrors") or []):
+        if not isinstance(u, str):
+            continue
+        u = u.strip()
+        if not u.startswith("https://") or u == url or u in out:
+            continue
+        if Path(urlparse(u).path).name != asset:
+            continue
+        out.append(u)
+    return out[:4]
+
+
+def _probe(url: str, timeout: float = 4.0, sample: int = 128 * 1024) -> float:
+    """给一个源打分：拉一小段量吞吐（字节/秒）。失败返回 -1（排到最后，但仍会试）。
+
+    只拉 128KB 就断开：目的是排序不是下载。有的源不认 Range、直接从头开始推整包，
+    所以必须 stream=True + 及时 close，否则测一次速就把 36MB 都拉下来了。"""
+    try:
+        t0 = time.perf_counter()
+        with requests.get(url, stream=True, timeout=(timeout, timeout),
+                          headers={"User-Agent": "loom-updater",
+                                   "Range": f"bytes=0-{sample - 1}"}) as r:
+            if r.status_code not in (200, 206):
+                return -1.0
+            got = 0
+            for chunk in r.iter_content(chunk_size=32 * 1024):
+                got += len(chunk)
+                if got >= sample:
+                    break
+        dt = max(time.perf_counter() - t0, 1e-3)
+        return got / dt if got else -1.0
+    except Exception:
+        return -1.0
+
+
+def _order_sources(urls: list) -> list:
+    """按实测速度排序。只有一个源就直接返回 —— 没有"选"这回事，别多花一次往返。
+    Python 的排序是稳定的，所以同样失败（-1）的那些保持原有顺序，等于退回清单顺序。"""
+    urls = [u for u in urls if u]
+    if len(urls) <= 1:
+        return urls
+    scored = [(u, _probe(u)) for u in urls]
+    scored.sort(key=lambda t: t[1], reverse=True)
+    return [u for u, _ in scored]
+
+
+def _download_any(cands: list, dest: Path, expect: int, want_sha: str) -> None:
+    """挨个源试，直到有一个下下来且**过了 sha256**。全试完还是不行就报最后一次的错。
+
+    选源只决定顺序，不决定装什么：每个源下的东西都要过同一份 sha256，
+    所以"哪边快用哪边"不会退化成"哪边给旧包用哪边"。"""
+    last = ""
+    for u in cands:
+        _download(u, dest, expect, want_sha)
+        if STATE.get("phase") == "ready":
+            if len(cands) > 1:
+                _set(error="")
+            return
+        last = STATE.get("error") or last
+    _set(phase="error", error=(last or "下载失败")[:300], got=0)
 
 
 def _download(url: str, dest: Path, expect: int, want_sha: str):
@@ -261,9 +332,13 @@ def start_download() -> dict:
         _set(phase="error", error="更新包目标路径不在更新目录内，已拒绝")
         return snapshot()
     _set(phase="downloading", got=0, error="", path=str(dest))
-    t = threading.Thread(target=_download,
-                         args=(s["url"], dest, s["size"], s["sha256"]),
-                         daemon=True, name="loom-update")
+    # 主地址 + 清单给的镜像，按实测速度排；只有一个源时 _order_sources 直接返回，不测速。
+    # 排序放在下载线程里做，免得测速那一两秒把 HTTP 请求卡住。
+    def _run():
+        c = _order_sources([s["url"]] + list(s.get("mirrors") or []))
+        _download_any(c, dest, s["size"], s["sha256"])
+
+    t = threading.Thread(target=_run, daemon=True, name="loom-update")
     _DL["t"] = t
     t.start()
     return snapshot()

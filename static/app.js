@@ -519,17 +519,27 @@ let UP = null, UP_POLL = null;
 let UP_ASK = '';
 const mb = n => (n/1048576).toFixed(1) + ' MB';
 
+/* 悬停要能看到"更新了什么"。发版说明截到 140 字，全文在浮层里 ——
+   提示框宽 264px，把清单里最长 2000 字的 notes 整段塞进去会糊成一大块。 */
+function upNoteTip(s){
+  const n = String((s && s.notes) || '').replace(/\s+/g, ' ').trim();
+  return n ? ' · ' + (n.length > 140 ? n.slice(0, 140) + '…' : n) : '';
+}
+
 function upView(s){
   if(!s || !s.configured) return null;
   const pct = s.size ? Math.min(99, Math.floor((s.got||0)*100/s.size)) : 0;
+  const note = upNoteTip(s);
+  /* available 与 downloading 两态**不画图标**：那颗下载小箭头是用户点名去掉的
+     （"不要有下载的小箭头"）。进度由百分比和进度条表达，不需要一个箭头说"在下"。 */
   if(s.phase === 'available')
-    return {text: t('up.avail'), tip: t('up.tipAvail', {v: s.latest, cur: s.local}),
-            tone: '', ic:'download', p: 0};
+    return {text: t('up.avail'), tip: t('up.tipAvail', {v: s.latest, cur: s.local}) + note,
+            tone: '', ic:'', p: 0};
   if(s.phase === 'downloading')
-    return {text: pct + '%', tip: t('up.tipDl', {got: mb(s.got||0), size: mb(s.size)}),
-            tone: 'dl', ic:'download', p: pct};
+    return {text: pct + '%', tip: t('up.tipDl', {got: mb(s.got||0), size: mb(s.size)}) + note,
+            tone: 'dl', ic:'', p: pct};
   if(s.phase === 'ready')
-    return {text: t('up.ready'), tip: t('up.tipReady', {p: s.path || ''}),
+    return {text: t('up.ready'), tip: t('up.tipReady', {p: s.path || ''}) + note,
             tone: 'ok', ic:'checkCircle', p: 100};
   if(s.phase === 'error')
     return {text: t('up.failed'), tip: t('up.tipErr', {e: s.error || ''}),
@@ -548,7 +558,7 @@ function paintUpdate(){
   b.hidden = false;
   b.className = 'sb-update' + (v.tone ? ' is-' + v.tone : '');
   b.innerHTML = (v.tone === 'dl' ? '<span class="sb-up-bar"></span>' : '')
-              + `<span class="sb-up-ic">${ico(v.ic||'download')}</span>`
+              + (v.ic ? `<span class="sb-up-ic">${ico(v.ic)}</span>` : '')
               + '<span class="sb-up-tx">' + esc(v.text) + '</span>';
   b.dataset.tip = v.tip;
   b.setAttribute('aria-label', v.tip);
@@ -680,6 +690,7 @@ window.upApply = async function(){
 window.upCheckNow = async function(){
   UP = await post('/api/update/check').catch(()=>UP);
   paintUpdate();
+  await upAutoDownload();
 };
 
 function upPoll(){
@@ -701,6 +712,14 @@ window.sbUpdateClick = function(e){
   window.upOpen();
 };
 
+/* 检测到就自己开始下（用户的要求：进软件自动检测、有新版就下，点一下才是"装"）。
+   后端对"已经在下的"是幂等的，两次调用不会下出两份。 */
+async function upAutoDownload(){
+  if(!UP || UP.phase !== 'available') return;
+  UP = await post('/api/update/download').catch(()=>UP);
+  paintUpdate(); upPoll();
+}
+
 async function upInit(){
   const s = await api('/api/update').catch(()=>null);
   if(!s || !s.configured) return;
@@ -713,6 +732,7 @@ async function upInit(){
   }
   paintUpdate();
   if(UP && UP.phase === 'downloading') upPoll();
+  else if(UP) await upAutoDownload();
 }
 window.upInit = upInit;
 window.paintUpdate = paintUpdate;
@@ -1806,6 +1826,7 @@ window.checkNow = async function(){
   ST.update = r; UP = r; paintUpdate();
   if(r.phase==='error'){ toast(r.error||t('up.failed')); }
   else { toast(t('up.checked',{s:upStatusText(r)}), true); }
+  await upAutoDownload();     // 手动重检也一样：有就下，别让人再点一次
   renderSettings(SET_SECTION);
 };
 

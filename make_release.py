@@ -131,6 +131,9 @@ def main() -> int:
 
     manifest = {"version": ver, "url": f"{URL_BASE}/{setup.name}",
                 "file": setup.name, "sha256": digest, "size": size,
+                # 镜像列表先留空，由 publish_github.py 在把包发到 GitHub Releases
+                # 之后回填；软件按实测速度在两个源里挑快的，但**装什么永远看 sha256**。
+                "mirrors": [],
                 "notes": a.notes or f"织流 Jacquard {ver}"}
     (REL / "latest.json").write_text(
         json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")

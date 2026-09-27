@@ -82,3 +82,60 @@ def test_the_sha_helper_hashes_a_real_file(tmp_path):
     f.write_bytes(b"hello")
     assert upload_cos.sha256_of(f) == \
         "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824"
+
+
+# ---------------- GitHub 镜像（第二下载源） ----------------
+
+_pg_spec = importlib.util.spec_from_file_location(
+    "publish_github", Path(__file__).resolve().parent.parent / "publish_github.py")
+publish_github = importlib.util.module_from_spec(_pg_spec)
+sys.modules["publish_github"] = publish_github
+_pg_spec.loader.exec_module(publish_github)
+
+
+def _fake_release_dir(tmp_path, size=1234):
+    import json
+    man = {"version": "9.9.9", "url": f"{BASE}/Loom-9.9.9-setup.exe",
+           "file": "Loom-9.9.9-setup.exe", "sha256": "b" * 64, "size": size,
+           "notes": "说明"}
+    (tmp_path / "latest.json").write_text(json.dumps(man, ensure_ascii=False), encoding="utf-8")
+    (tmp_path / "Loom-9.9.9-setup.exe").write_bytes(b"x" * 8)
+    return tmp_path / "latest.json"
+
+
+def test_make_release_leaves_a_mirrors_slot():
+    """清单里得先有这个字段，回填才有地方写。老清单没有它时软件按单源跑（有测试钉着）。"""
+    src = (Path(__file__).resolve().parent.parent / "make_release.py").read_text(encoding="utf-8")
+    assert '"mirrors"' in src
+
+
+def test_mirror_url_is_the_release_asset():
+    assert publish_github.mirror_url("1.2.8", "Loom-1.2.8-setup.exe") == \
+        "https://github.com/liixnglinb/Jacquard/releases/download/v1.2.8/Loom-1.2.8-setup.exe"
+
+
+def test_a_mirror_that_cannot_be_read_back_is_not_written(tmp_path, monkeypatch):
+    """回读不通过就别写进清单 —— 写了等于告诉所有已装机器"这个源有包"，
+    而它可能 404。前端是拿它去测速的，一个死源会白等一轮超时。"""
+    import pytest
+    man_path = _fake_release_dir(tmp_path)
+    before = man_path.read_text(encoding="utf-8")
+    monkeypatch.setattr(publish_github, "REL", tmp_path)
+    monkeypatch.setattr(publish_github, "verify", lambda *a, **k: False)
+    monkeypatch.setattr(sys, "argv", ["publish_github.py", "--skip-upload"])
+    with pytest.raises(SystemExit) as ei:      # 失败是 sys.exit(非零)，不是返回码
+        publish_github.main()
+    assert ei.value.code not in (0, None)
+    assert man_path.read_text(encoding="utf-8") == before, "回读没过却把镜像写进了清单"
+
+
+def test_a_verified_mirror_lands_in_the_manifest(tmp_path, monkeypatch):
+    import json
+    man_path = _fake_release_dir(tmp_path)
+    monkeypatch.setattr(publish_github, "REL", tmp_path)
+    monkeypatch.setattr(publish_github, "verify", lambda *a, **k: True)
+    monkeypatch.setattr(sys, "argv", ["publish_github.py", "--skip-upload"])
+    assert publish_github.main() == 0
+    man = json.loads(man_path.read_text(encoding="utf-8"))
+    assert man["mirrors"] == [publish_github.mirror_url("9.9.9", "Loom-9.9.9-setup.exe")]
+    assert man["sha256"] == "b" * 64 and man["size"] == 1234, "回填不该动到别的主字段"
