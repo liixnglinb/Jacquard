@@ -203,6 +203,17 @@ ModelFlow 时代的残留。
    `cubic-bezier(.4,0,.2,1)`、以及**离线打包 Montserrat 给西文用**（用户当时点了这条，但和上面一起冻住了；
    注意 `test_font_faces_declare_one_standard_weight_each` 要求全站 @font-face 的字重集合**正好**是 400/500/600/700，
    可变字体轴 `100 900` 会直接判失败）。
+6. **站点侧的改名没做**（2026-09-27 核对，本轮刻意留着）。产品端显示层已经全是 Jacquard，
+   站上有两处仍是前身名，都在 `D:\Voyra 个人网站`：`src/pages/Dashboard.jsx:27` 的下载卡
+   `name: '织流 Loom'`、`:422` 预览条「织流 Loom 流程」，以及 `public/modelflow/index.html`
+   整页（2026-09-27 抓线上实测：`Loom` 11 处 + `织流 Loom` 5 处），页内图标资源
+   `logo.svg` / `logo-64.png` / `favicon-{16,32}.png` 也还是**旧字标 L**（新 J 图标只在产品仓库的
+   `assets/`、`static/` 里，还没进任何一个包）。**要动就得走一次 `liixnglinb/Voyra` 的 main 推送 ——
+   Cloudflare 自动部署、直接影响线上**，所以先问。改之前记得那份页内 mock 是逐值对齐软件的，
+   只换字样不换几何。
+7. **要不要现在发 1.2.6**。字标换 J、补上的那五处显示串、`FastAPI(title=...)` 全部只在**新包**里生效；
+   不发版它们就只躺在源码里。发版 = `make_release.py` → 推源码 → `upload_cos.py` → `sync_landing.py`
+   → Cloudflare 上线 → 所有已装用户会在软件里看到更新，这是往线上推的动作，按第 5 节 SOP 得一步步看着走。
 
 ---
 
@@ -403,13 +414,16 @@ PY="/c/Users/李星历/AppData/Local/Programs/Python/Python312/python.exe"
 #    汇总行（"367 passed in 45s"）会被吞掉，你会以为自己没跑到。
 PYTHONUTF8=1 "$PY" -m pytest
 
-# 2. 打包（图标动过先跑 make_icon.py）
-PYTHONUTF8=1 "$PY" make_icon.py        # 只在图标/字标动过时跑，它一次生成全套落点
+# 2. 图标/字标动过时先重新生成全套落点（一次写 assets/ ico+PNG 与 static/ 那几份小尺寸变体）
+PYTHONUTF8=1 "$PY" make_icon.py
 
 # 2b. 只要 static/ 下的文件内容变过，就得 bump 缓存令牌，否则装好的人端的是旧缓存
 #     （改图标这一轮就是这么差点没生效：logo-sm.svg 换了字标，?v= 还是旧的）
 sed -i "s/?v=<旧令牌>/?v=$(git rev-parse --short=8 HEAD)/g" static/index.html
 grep -c "?v=$(git rev-parse --short=8 HEAD)" static/index.html   # 应为 10
+
+# 2c. 打包
+PYTHONUTF8=1 "$PY" make_release.py --notes "这一版改了什么"
 
 # 3. 提交源码（别先传包，失败了好回退）
 git add -A && git commit -m "release: X.Y.Z —— …"
