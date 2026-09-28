@@ -107,3 +107,28 @@ def test_nav_progress_line_is_transform_driven(src):
     assert re.search(r"function update\(\)\{[^}]*applyProgress\(\)", body), "进度条没接进滚动帧"
     assert re.search(r"if \(REDUCED\)\{\s*applyProgress\(\);", body), \
         "减动效档下首帧没量：后台打开会停在 0"
+
+
+def test_page_is_six_bands_with_one_h2_each(src):
+    """十段并成六段之后，锚点、导航、二级标题数量都是钉死的 —— 再长出第七段或
+    第二段 h2 就得回这里说清楚为什么。"""
+    ids = re.findall(r'<section[^>]*\bid="([^"]+)"', src)
+    assert ids == ["flow", "run", "start", "local", "faq", "dl"], ids
+    assert len(re.findall(r"<h2>", src)) == 6, "一段只许一个 h2"
+    assert src.count('class="band-head" data-rise') == 4, "段内二级标题"
+    for gone in ("cap", "runit", "pipeline", "how", "req", "omni"):
+        assert f'id="{gone}"' not in src, f"#{gone} 该并掉了"
+    nav = re.findall(r'<a href="#([\w-]+)">', src[src.index('id="navLinks"'):src.index('class="nav-right"')])
+    assert nav == ["flow", "run", "start", "local", "faq"], nav
+    for href in set(re.findall(r'href="#([\w-]+)"', src)):
+        assert f'id="{href}"' in src, f"页内锚点 #{href} 指向不存在的位置"
+
+
+def test_mobile_band_padding_overrides_the_class_rule(src):
+    """.runit 是类选择器，压得住窄屏那条 section{padding:20px} —— 收成令牌之后
+    不补这一行，产品图带在手机上会照抄桌面的 144。"""
+    css = _style_block(src)
+    narrow = css[css.index("@media (max-width:860px)"):]
+    assert re.search(r"\.runit\{padding:var\(--sp-band\) 0\}", narrow), \
+        "窄屏少了 .runit 的覆盖：类选择器会盖过 section"
+
