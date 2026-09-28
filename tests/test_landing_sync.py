@@ -18,17 +18,18 @@ sync_landing = importlib.util.module_from_spec(_spec)
 sys.modules["sync_landing"] = sync_landing
 _spec.loader.exec_module(sync_landing)
 
+# 2026-09-28 下载页首屏撤掉了居中那张"已下载好"的更新浮层，于是显示位从 7 处收到 6 处，
+# 也没有"浮层里那行当前版本"了。注释里那句历史说明留着 —— 它正是"注释里的旧版本号
+# 不该被改"这条判据的用例。
 PAGE = """<html><head><style>
 /* 更新浮层。而 9.9.8 开始浮层还会显示这一段发版说明 —— 历史说明，不该跟着漂 */
-.m-upd{{border-radius:16px}}
+.m-card{{border-radius:16px}}
 </style></head><body>
 <span class="ver" id="navVer">9.9.9</span>
 <span class="ver" id="heroVer">9.9.9</span>
 <span class="ver" id="btnVer">9.9.9</span>
 <span class="ver" id="ftVer">9.9.9</span>
 <div class="m-up">更新至 9.9.9</div>
-<div class="m-upd-h"><b>v9.9.9 已下载好</b></div>
-<div class="m-upd-v">当前 v9.9.8</div>
 <a href="https://x/Loom-9.9.9-setup.exe">下载</a>
 <div id="heroSize">36.2 MB</div><div id="btnSize">36.2 MB</div>
 <p>安装包约 36.2 MB，全本地运行</p>
@@ -36,18 +37,16 @@ PAGE = """<html><head><style>
 </body></html>"""
 
 
-def test_seven_spots_move_and_the_prev_line_steps_back_one():
-    out, prev = sync_landing.sync_versions(PAGE, "9.9.9", "9.9.10")
-    assert prev == "9.9.8"
+def test_every_registered_spot_moves_and_nothing_else_does():
+    out = sync_landing.sync_versions(PAGE, "9.9.9", "9.9.10")
     assert len(re.findall(r"9\.9\.10", out)) == len(sync_landing.SPOTS)
-    # 浮层"当前版本"填的是上一版，不是新版
-    assert "当前 v9.9.9" in out and "当前 v9.9.8" not in out
     # 注释里那句历史说明原样不动
     assert "9.9.8 开始浮层还会显示" in out
+    assert "9.9.9" not in out.replace("9.9.8 开始浮层还会显示", ""), "有旧版本号没被换掉"
 
 
 def test_a_missing_spot_fails_instead_of_silently_skipping():
-    """少一处（把页脚那个 span 删掉）必须红，而不是"换了 6 处，算了"。"""
+    """少一处（把页脚那个 span 删掉）必须红，而不是"换了 5 处，算了"。"""
     broken = PAGE.replace('<span class="ver" id="ftVer">9.9.9</span>', "")
     with pytest.raises(AssertionError) as e:
         sync_landing.sync_versions(broken, "9.9.9", "9.9.10")
@@ -79,5 +78,5 @@ def test_the_real_page_still_matches_the_registered_spots():
     vers = sorted(set(re.findall(r"\b\d+\.\d+\.\d+\b", s)),
                   key=lambda v: [int(x) for x in v.split(".")])
     newest = vers[-1]
-    out, _ = sync_landing.sync_versions(s, newest, "99.99.99")
+    out = sync_landing.sync_versions(s, newest, "99.99.99")
     assert len(re.findall(r"99\.99\.99", out)) == len(sync_landing.SPOTS)

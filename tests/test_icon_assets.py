@@ -113,11 +113,50 @@ def test_generated_small_svg_matches_the_snapped_table():
 
     svg = (STATIC / "logo-sm.svg").read_text(encoding="utf-8")
     g = make_icon.SMALL[20]
-    for x0, y0, x1, y1 in (g["stem"], g["foot"], g["hook"]):
+    fx, fy = g["fillet"]
+    for x0, y0, x1, y1 in (g["stem"], g["foot"], g["hook"], (fx, fy, fx, fy)):
         frag = f'<rect x="{x0}" y="{y0}" width="{x1 - x0 + 1}" height="{y1 - y0 + 1}" fill="#FFFFFF"/>'
         assert frag in svg, f"logo-sm.svg 与 SMALL[20] 漂了，缺：{frag}"
     # 反向也要钉：SVG 里的白矩形数量必须和表一致，多一块少一块都算漂
-    assert svg.count('fill="#FFFFFF"') == 3, svg.count('fill="#FFFFFF"')
+    # （竖笔 / 横脚 / 钩尖 / 内角那一个像素）
+    assert svg.count('fill="#FFFFFF"') == 4, svg.count('fill="#FFFFFF"')
+
+
+def test_the_master_glyph_is_one_stroked_path_not_three_rectangles():
+    """2026-09-28：直角钩换成圆弧钩。母版 SVG 里字标必须是**一条带 A 弧的描边路径**，
+    退回三个 <rect> 就是那个"往回勾一下"的台阶又回来了。位图与 SVG 共用 GLYPH_D 的常数，
+    所以这里同时钉住半径。"""
+    import make_icon
+
+    svg = (STATIC / "logo.svg").read_text(encoding="utf-8")
+    tag = re.search(r'<path d="([^"]+)"[^>]*>', svg)
+    assert tag, "母版里字标不再是描边路径 —— 三个矩形拼的直角钩回来了"
+    d, whole = tag.group(1), tag.group(0)
+    assert d.count("A") == 2, f"两个弯少了：{d}"
+    assert f'stroke-width="{make_icon.STROKE}"' in whole
+    assert f"A{make_icon.R1} {make_icon.R1}" in d and f"A{make_icon.R2} {make_icon.R2}" in d
+    assert 'stroke-linecap="butt"' in whole, "端点要平切，圆头会把方头字标变成香肠"
+
+
+def test_the_tile_has_a_lit_top_edge_and_a_shaded_bottom_edge():
+    """砖的厚度来自"上亮下暗"，不是来自一圈等亮描边。
+    盯两件事：SVG 里那两条描边各自带竖向渐变；位图同一列上，顶部第 2 行要比
+    中心第 128 行亮、底部倒数第 2 行要比中心暗。"""
+    import make_icon
+
+    svg = (STATIC / "logo.svg").read_text(encoding="utf-8")
+    assert 'stroke="url(#bevel-top)"' in svg and 'stroke="url(#bevel-bot)"' in svg, \
+        "内沿亮暗被改成了等亮描边 —— 那读起来是描边不是厚度"
+
+    img = make_icon.render(256).convert("RGB")
+    px = img.load()
+    col = 128
+    top = sum(px[col, y][0] for y in (2, 3)) / 2
+    mid = px[col, 128][0]
+    bot = sum(px[col, y][0] for y in (252, 253)) / 2
+    assert top > mid + 3.0, f"内顶沿没亮起来（顶 {top:.1f} vs 中 {mid:.1f}）"
+    assert bot < mid - 3.0, f"内底沿没压暗（底 {bot:.1f} vs 中 {mid:.1f}）"
+
 
 
 def _row_halves(img, y, xl, xr):

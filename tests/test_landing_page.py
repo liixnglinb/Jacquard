@@ -132,3 +132,56 @@ def test_mobile_band_padding_overrides_the_class_rule(src):
     assert re.search(r"\.runit\{padding:var\(--sp-band\) 0\}", narrow), \
         "窄屏少了 .runit 的覆盖：类选择器会盖过 section"
 
+
+# ---------------------------------------------------------------- 第三轮
+def test_hero_shows_the_working_ui_not_the_update_dialog(src):
+    """首屏那半屏必须是软件真的在跑的样子。居中那张"v1.2.7 已下载好"浮层
+    （连它底下那层遮罩）是页面自己加的戏，用户明说没人要看 —— 删干净，
+    样式行也别留着。"""
+    for gone in ("m-upd", "m-mask", "已下载好", "安装并重启"):
+        assert gone not in src, f"首屏还留着更新浮层的东西：{gone}"
+    css = _style_block(src)
+    assert re.search(r"\.hero\{[^}]*min-height:100vh", css), "hero 不再是一屏高"
+    assert re.search(r"\.hero-in\{[^}]*flex:0 0 auto", css), \
+        "文案区还在 flex:1 撑满 —— 产品图会被顶到二屏去"
+    assert re.search(r"\.hero-stage\{[^}]*flex:1 1 auto[^}]*align-items:flex-end", css), \
+        "产品图没吃掉剩下的整屏并贴住底边"
+
+
+def test_stats_columns_match_the_number_of_items(src):
+    """数字条曾经 5 列只放 4 格 —— 后面空一格，谁看都知道是凑数。
+    基础规则和每一处改列数的媒体查询都要对上格数。"""
+    css = _style_block(src)
+    n = len(re.findall(r'<div class="stat">', src))
+    assert n >= 2, f"数字条只剩 {n} 格？"
+    cols = [int(m) for m in re.findall(r"\.stats\{[^}]*?repeat\((\d+),1fr\)", css)]
+    assert cols, "没找到 .stats 的列数"
+    assert all(c == n or c == 2 for c in cols), \
+        f"数字条有 {n} 格，但某处列数是 {cols} —— 会空出一格（2 列是窄屏两行排，允许）"
+
+
+def test_hover_only_motion_is_gated_off_for_touch(src):
+    """跟光标的柔光和进场扫光都只在真有指针的设备上跑；触屏没有 hover，
+    留着就是白挂一个 pointermove 监听。"""
+    css = _style_block(src)
+    assert "--mx" in css and "--my" in css, "柔光圆心不再是自定义量"
+    assert re.search(r"\.card:hover::before,\.stage:hover::before,\.lc:hover::before\{opacity:1\}", css)
+    body = src[src.index("<body>"):]
+    assert re.search(r"if \(REDUCED \|\| !matchMedia\('\(hover:hover\)'\)\.matches\) return;", body), \
+        "柔光/扫光没在触屏与减动效档下早退"
+    assert "@keyframes pillShine" in css and ".js .pill.shine::after" in css
+    assert ".lc{position:relative}" in css, ".lc 没定位，柔光会跑到视口上"
+
+
+def test_rise_motion_clears_its_transform(src):
+    """段进场从纯淡入改成淡入 + 上浮。两个失败都得抓：① 忘了在 .shown 里
+    收回 transform，卡片永远抬着 18px；② 减动效档只关了 opacity 没关 transform。"""
+    css = _style_block(src)
+    assert re.search(r"\.js \[data-rise\]\{opacity:0;transform:translateY\(\d+px\)", css), \
+        "进场没有上浮了"
+    assert re.search(r"\.js \[data-rise\]\.shown\{opacity:1;transform:none\}", css), \
+        ".shown 没收回 transform"
+    assert re.search(r"\.js \[data-rise\]\{opacity:1;transform:none", css), \
+        "减动效档只关了淡入，没关位移"
+
+

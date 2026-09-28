@@ -16,6 +16,8 @@ import sys
 
 # 每一处会显示给用户看的版本号，一条一个正则（{V} 处填旧版本号）。
 # class 一律不写死：页里这几枚 span 的 class 有两种（ver / en），按 id 认才认得住。
+# 2026-09-28 下载页首屏撤掉了那张"已下载好"的更新浮层，于是少一处显示位、
+# 也没有"浮层里那行当前版本"了 —— 这里同步收窄，别留一条永远命中不到的正则。
 SPOTS = {
     "下载直链文件名": r"Loom-{V}-setup\.exe",
     "导航条版本": r'<span class="[^"]*" id="navVer">{V}</span>',
@@ -23,11 +25,7 @@ SPOTS = {
     "下载按钮版本": r'<span class="[^"]*" id="btnVer">{V}</span>',
     "页脚版本": r'<span class="[^"]*" id="ftVer">{V}</span>',
     "侧栏更新胶囊": r"更新至 {V}",
-    "更新浮层标题": r"v{V} 已下载好",
 }
-# 浮层里"你现在在哪一版"那一行：它填的是**上一个**版本，不是新版本。
-PREV_SPOT = "更新浮层的当前版本行"
-PREV_RE = r"当前 v([\d.]+)"
 
 
 def _in_css_comment(text, pos):
@@ -40,8 +38,8 @@ def _in_css_comment(text, pos):
 
 
 def sync_versions(text, old_v, new_v):
-    """把 7 处显示位换成 new_v，并把浮层那行"当前 v…"填成 old_v。
-    命中数不对、或者页里出现了没登记过的版本号位置 —— 直接抛，不静默改一半。"""
+    """把每一处显示位换成 new_v。命中数不对、或者页里出现了没登记过的版本号位置
+    —— 直接抛，不静默改一半。"""
     ev = re.escape(old_v)
     hits = {}
     explained = set()
@@ -53,11 +51,6 @@ def sync_versions(text, old_v, new_v):
         # 残留检查拿 re.finditer(版本号) 的位置来比，记起点会处处对不上。
         explained.add(found[0].start() + found[0].group(0).index(old_v))
 
-    prev = list(re.finditer(PREV_RE, text))
-    assert len(prev) == 1, f"{PREV_SPOT}：预期 1 处，实际 {len(prev)}"
-    prev_v = prev[0].group(1)
-    explained.add(prev[0].start(1))
-
     # 没被解释掉的旧版本号：只允许是注释里的历史说明
     stray = [m for m in re.finditer(ev, text) if m.start() not in explained]
     for m in stray:
@@ -67,10 +60,10 @@ def sync_versions(text, old_v, new_v):
 
     for name, m in hits.items():
         text = text[:m.start()] + m.group(0).replace(old_v, new_v) + text[m.end():]
-    text = re.sub(PREV_RE, lambda mm: mm.group(0).replace(mm.group(1), old_v), text)
 
     assert len(re.findall(re.escape(new_v), text)) == len(SPOTS), "新版本号数量不对"
-    return text, prev_v
+    return text
+
 
 
 def sync_size(text, size_mb):
@@ -92,9 +85,8 @@ def main() -> int:
     size_mb = sys.argv[3] if len(sys.argv) > 3 else None
     p = pathlib.Path(r"D:\Voyra 个人网站\public\modelflow\index.html")
     s = p.read_text(encoding="utf-8")
-    s, prev_v = sync_versions(s, old_v, new_v)
-    print(f"{len(SPOTS)} 处版本号 {old_v} -> {new_v}；"
-          f"浮层「当前版本」那行填上一版 {old_v}（原来写着 {prev_v}）")
+    s = sync_versions(s, old_v, new_v)
+    print(f"{len(SPOTS)} 处版本号 {old_v} -> {new_v}")
     if size_mb:
         s, cur = sync_size(s, size_mb)
         print(f"体积 {cur} MB -> {size_mb} MB" if cur != size_mb else f"体积仍是 {cur} MB")
