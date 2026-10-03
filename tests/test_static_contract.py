@@ -293,9 +293,14 @@ def test_no_class_in_markup_without_a_rule():
         for m in re.finditer(r'class="([^"]*)"', f.read_text(encoding="utf-8")):
             v = re.sub(r"\$\{[^{}]*\}", " ", m.group(1))
             used |= {t for t in v.split() if re.fullmatch(r"[a-zA-Z][\w-]*[a-zA-Z0-9]", t)}
-    defined = set(re.findall(r"\.([a-zA-Z][\w-]*)", CSS))
+    # New adapters are loaded by index.html; validate the actual stylesheet set,
+    # not only the original monolithic style.css.
+    html = (STATIC_DIR / "index.html").read_text(encoding="utf-8")
+    linked = re.findall(r'href="/static/([^"?]+\.css)(?:\?[^" ]*)?"', html)
+    linked_css = "\n".join((STATIC_DIR / name).read_text(encoding="utf-8") for name in linked)
+    defined = set(re.findall(r"\.([a-zA-Z][\w-]*)", linked_css))
     missing = used - defined
-    assert not missing, f"这些类名在 style.css 里没有规则：{sorted(missing)}"
+    assert not missing, f"这些类名在已加载的样式中没有规则：{sorted(missing)}"
 
 
 def test_no_static_inline_typography_or_spacing():

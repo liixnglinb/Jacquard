@@ -18,6 +18,7 @@ const _lockScroll = on => { document.body.style.overflow = on ? 'hidden' : ''; }
 window._lockScroll = _lockScroll;
 
 async function api(path, opts){
+  if (!opts || !opts.method || opts.method === 'GET') return window.voyraRead(path, opts);
   const r = await fetch(path, opts);
   const ct = r.headers.get('content-type')||'';
   if(ct.includes('application/json')) return r.json();
@@ -763,7 +764,9 @@ let NAV_CHAIN=Promise.resolve();   /* 导航排队用，见 nav.resolve() */
 /* 永远不把已有内容清空：旧页面一直留到新页面算好之后一次性换掉。
    换页时短暂显示上一页，比整页白一下再长出来要稳。 */
 function viewLoading(){
-  const v = $('#view'); if(!v || v.children.length) return;
+  const v = $('#view'); if(!v) return;
+  v.setAttribute('aria-busy','true');
+  if(v.children.length) return;
   v.innerHTML = '<div class="loading-bar"></div>';
 }
 window.viewLoading = viewLoading;
@@ -795,7 +798,7 @@ const nav = {
       window.__chrome = {title:'', icon:'flow', actions:''};
       const v = $('#view'); if(v) v.classList.remove('with-composer');
       if(view!=='settings') delete $('#app').dataset.shell;
-      const run = async (fn, key)=>{ await fn(); renderNav(key); paintChrome(); };
+      const run = async (fn, key)=>{ try { await fn(); renderNav(key); paintChrome(); window.voyraReadReady(); } finally { $('#view')?.setAttribute('aria-busy','false'); } };
       if(view==='home') await run(window.renderHome,'home');
       else if(view==='skills') await run(window.renderSkills,'skills');
       else if(view==='skill-edit') await run(()=>window.renderSkillEdit(extra),'skills');
@@ -811,6 +814,8 @@ const nav = {
          会让链子变成 rejected 状态，之后每一次 .then 都被跳过 —— 整个应用
          再也翻不了页。所以这一层必须吃掉异常，链子永远是 resolved。 */
       console.error('导航失败：', e);
+      $('#view')?.setAttribute('aria-busy','false');
+      window.voyraReadError(e.message || String(e));
     });
   },
 };
@@ -916,8 +921,8 @@ window.renderHome = async function(){
   const needPreset = ST.presets === null;   /* 空数组=拉过了真没有，别再拉一遍 */
   const [pr, pv] = await Promise.all([
     (tpls && tpls.length) ? Promise.resolve(null)
-                          : api('/api/pipelines').catch(()=>({pipelines:[]})),
-    needPreset ? api('/api/providers').catch(()=>({presets:[]})) : Promise.resolve(null),
+                          : api('/api/pipelines'),
+    needPreset ? api('/api/providers') : Promise.resolve(null),
   ]);
   if(pv) ST.presets = pv.presets||[];
   if(pr) tpls = pr.pipelines||[];

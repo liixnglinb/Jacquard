@@ -7,7 +7,7 @@ const $ = s => document.querySelector(s);
 const t = window.t;
 const ico = window.icon;
 const esc = s => String(s??'').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const _api = (u,o) => fetch(u,o).then(r=>r.json());
+const _api = (u,o) => !o || !o.method || o.method==='GET' ? window.voyraRead(u,o) : fetch(u,o).then(r=>r.json());
 const _post = (u,b) => _api(u,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(b||{})});
 const toast = (m,ok) => window.ffToast(m,ok);
 const ART_URL = (runId,name) => '/api/runs/'+encodeURIComponent(runId)+'/artifacts/'+encodeURI(name);
@@ -18,21 +18,21 @@ const dur = ms => { const s=Math.round((ms||0)/1000);
 window.renderRuns = async function(){
   window.viewLoading();
   const RS = window.RUN_ST();
-  const runs = (await _api('/api/runs').catch(()=>({runs:[]}))).runs||[];
+  const runs = (await _api('/api/runs')).runs||[];
   window.__chrome = {title:t('nav.runs'), icon:'runs'};   /* 这页只看历史，下任务走侧栏入口 */
   const row = u => `
-    <div class="pl-card-row" onclick="nav.go('run/${esc(u.id)}')">
-      <div class="pl-row-main">
+    <article class="pl-card-row">
+      <a class="pl-row-main" href="#/run/${esc(u.id)}">
         <div class="pl-row-title"><span class="pl-row-name">${esc(u.label||u.pipeline)}</span>
           <code>${esc(u.id)}</code>
           <span class="run-badge rb-${esc(u.status)}">${esc(RS[u.status]||u.status)}</span></div>
         <div class="pl-row-meta"><span>${(u.steps||[]).length} ${esc(t('c.steps'))}</span><span>${esc(u.created_at)}</span></div>
-      </div>
+      </a>
       <div class="pl-row-ops" onclick="event.stopPropagation()">
         <button class="pf-op pf-op-start" onclick="nav.go('run/${esc(u.id)}')">${esc(t('c.view'))}</button>
         <button class="pf-op pf-op-danger" onclick="runDelete('${esc(u.id)}')">${esc(t('c.delete'))}</button>
       </div>
-    </div>`;
+    </article>`;
   $('#view').innerHTML = `<div class="pl-list">${
     runs.length?runs.map(row).join(''):`<div class="pf-empty">${esc(t('home.recentEmpty'))}</div>`}</div>`;
 };
@@ -66,7 +66,7 @@ function chromeActions(u){
 
 window.renderRunConsole = async function(runId){
   window.viewLoading();
-  const d = await _api('/api/runs/'+encodeURIComponent(runId)).catch(()=>null);
+  const d = await _api('/api/runs/'+encodeURIComponent(runId));
   if(!d || !d.run){ toast(t('run.notFound')); nav.go('runs'); return; }
   RUN = d.run; ARTS = d.artifacts||{}; LOGS = d.logs||[];
   WS = [];                               /* 清单跟着运行走，切回来重新拉 */

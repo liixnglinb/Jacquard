@@ -11,6 +11,7 @@
 const DICT = {
   zh: {
     'brand.name': '织流', 'brand.sub': '本地智能体流水线工作台', 'brand.full': 'Jacquard 织流',
+    'ui.readFailed':'页面内容未能完整读取','ui.keepResults':'已显示的内容保留。空白不表示没有数据，请检查本地服务后重新读取。','ui.retryRead':'重新读取当前页',
     'nav.workflows': '工作流', 'nav.skills': '技能库', 'nav.runs': '运行记录', 'nav.settings': '设置',
     'nav.newTask': '新建任务', 'sb.search': '搜索流程与运行', 'sb.noHit': '没有匹配的流程或运行',
     'sb.liveN': '{n} 个在跑', 'sb.noLive': '当前没有在跑的任务', 'sb.flows': '项目', 'sb.newFlow': '新建项目',
@@ -297,6 +298,7 @@ const DICT = {
   },
   en: {
     'brand.name': 'Jacquard', 'brand.sub': 'Local agent pipeline', 'brand.full': 'Jacquard',
+    'ui.readFailed':'Some page data could not be loaded','ui.keepResults':'Previously displayed content is retained. An empty view does not mean no data. Check the local service and retry.','ui.retryRead':'Reload this page',
     'nav.workflows': 'Workflows', 'nav.skills': 'Skills', 'nav.runs': 'Runs', 'nav.settings': 'Settings',
     'nav.newTask': 'New task', 'sb.search': 'Search workflows and runs', 'sb.noHit': 'No matching workflow or run',
     'sb.liveN': '{n} running', 'sb.noLive': 'Nothing is running', 'sb.flows': 'Projects', 'sb.newFlow': 'New project',

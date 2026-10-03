@@ -1,3 +1,3 @@
 # -*- coding: utf-8 -*-
 """版本号（发版时手动修改）。"""
-APP_VERSION = "1.2.7"
+APP_VERSION = "1.2.8"

@@ -10,6 +10,7 @@
 <title>Jacquard 织流</title>
 <link rel="stylesheet" href="/static/fonts/fonts.css">
 <link rel="stylesheet" href="/static/style.css?v=283aa713">
+<link rel="stylesheet" href="/static/voyra-ui.css?v=5b53b123">
 <script>
 /* 先落外观属性再渲染，避免深色模式闪白 */
 window.__FF_BOOT = fetch('/api/settings').then(r=>r.ok?r.json():{}).then(s=>{
@@ -73,7 +74,11 @@ window.__FF_BOOT = fetch('/api/settings').then(r=>r.ok?r.json():{}).then(s=>{
       <div class="tb-title" id="tbTitle"></div>
       <div class="tb-actions" id="tbActions"></div>
     </header>
-    <div class="container" id="view"></div>
+    <section class="workspace-state" id="workspaceState" hidden aria-label="页面读取状态">
+      <div><strong id="workspaceStateTitle"></strong><p id="workspaceStateText"></p><small id="workspaceStateDetails"></small></div>
+      <button type="button" class="btn btn-ghost" id="workspaceRetry">重新读取当前页</button>
+    </section>
+    <div class="container" id="view" aria-live="off"></div>
   </main>
 </div>
 
@@ -87,9 +92,11 @@ window.__FF_BOOT = fetch('/api/settings').then(r=>r.ok?r.json():{}).then(s=>{
 <div class="ff-tip" id="ffTip" hidden></div>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 <script src="/static/providers-catalog.js?v=283aa713"></script>
-<script src="/static/ui.js?v=283aa713"></script>
-<script src="/static/app.js?v=283aa713"></script>
-<script src="/static/editor.js?v=283aa713"></script>
-<script src="/static/run.js?v=283aa713"></script>
+<script src="/static/ui.js?v=5b53b123"></script>
+<script src="/static/voyra-ui.js?v=5b53b123"></script>
+<script src="/static/app.js?v=5b53b123"></script>
+<script src="/static/editor.js?v=5b53b123"></script>
+<script src="/static/run.js?v=5b53b123"></script>
+<script src="/static/voyra-dialogs.js?v=5b53b123"></script>
 </body>
 </html>

@@ -11,6 +11,7 @@ const ico = window.icon;
 function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
 function toast(msg, ok=false){ window.ffToast(msg, ok); }
 async function _api(path, opts){
+  if (!opts || !opts.method || opts.method === 'GET') return window.voyraRead(path, opts);
   const r = await fetch(path, opts);
   const ct = r.headers.get('content-type')||'';
   if(ct.includes('application/json')) return r.json();
@@ -85,8 +86,8 @@ document.addEventListener('click', (e)=>{
 
 async function plLoad(){
   const [pips, sks, caps, ag] = await Promise.all([
-    _api('/api/pipelines').catch(()=>({pipelines:[]})),
-    _api('/api/skills').catch(()=>({skills:[]})),
+    _api('/api/pipelines'),
+    _api('/api/skills'),
     _api('/api/agents/capabilities').catch(()=>null),
     _api('/api/agents').catch(()=>null),
   ]);
@@ -137,17 +138,17 @@ window.renderSkills = async function(){
   window.viewLoading();
   await plLoad();
   const row = s => `
-    <div class="pl-card-row" onclick="skView('${jsq(s.name)}')">
-      <div class="pl-row-main">
+    <article class="pl-card-row">
+      <button type="button" class="pl-row-main" onclick="skView('${jsq(s.name)}')">
         <div class="pl-row-title"><span class="pl-row-name">${esc(s.name)}</span>
           <span class="muted-sm">${s.chars>0?(s.chars/1000).toFixed(1)+'k':esc(t('sk.empty2'))}</span></div>
         ${s.desc?`<div class="pl-steps-mini"><span class="pl-step-chip pl-chip-wide">${esc(s.desc)}</span></div>`:''}
-      </div>
+      </button>
       <div class="pl-row-ops" onclick="event.stopPropagation()">
         <button class="pf-op" onclick="skView('${jsq(s.name)}')">${esc(t('c.view'))}</button>
         <button class="pf-op" onclick="nav.go('skill-edit/${jsq(s.name)}')">${esc(t('c.edit'))}</button>
       </div>
-    </div>`;
+    </article>`;
   window.__chrome = {title:t('sk.title'), icon:'skill',
     actions:`<button class="btn btn-ghost btn-sm" onclick="skImportModal()">${esc(t('c.import'))}</button>
       <button class="btn btn-primary btn-sm" onclick="nav.go('skill-edit/new')"><span class="btn-plus">＋</span> ${esc(t('sk.new'))}</button>`};
@@ -282,8 +283,8 @@ window.renderPipelines = async function(){
   window.viewLoading();
   await plLoad();
   const row = p => `
-    <div class="pl-card-row${p.archived?' archived':''}" onclick="nav.go('pipeline-edit/${jsq(p.name)}')">
-      <div class="pl-row-main">
+    <article class="pl-card-row${p.archived?' archived':''}">
+      <a class="pl-row-main" href="#/pipeline-edit/${jsq(p.name)}">
         <div class="pl-row-title"><span class="pl-row-name">${esc(p.label||p.name)}</span>
           <code>${esc(p.name)}</code>
           ${p.archived?`<span class="pl-arch-tag">${esc(t('sb.archived'))}</span>`:''}
@@ -291,14 +292,14 @@ window.renderPipelines = async function(){
         <div class="pl-row-meta"><span>${p.steps.length} ${esc(t('c.steps'))}</span>
           <span class="pl-steps-mini">${p.steps.map((s,i)=>
             `<span class="pl-step-chip" title="${esc(s.skill)}">${i+1}. ${esc(s.label)}</span>`).join('')}</span></div>
-      </div>
+      </a>
       <div class="pl-row-ops" onclick="event.stopPropagation()">
         <button class="pf-op pf-op-start" onclick="taskModal('${esc(p.name)}')">${esc(t('list.runned'))}</button>
         <button class="pf-op" onclick="nav.go('pipeline-edit/${jsq(p.name)}')">${esc(t('c.edit'))}</button>
         <button class="pf-op pf-op-more" data-tip-any="1" data-tip="${esc(t('c.more'))}"
           aria-label="${esc(t('c.more'))}" onclick="plRowMore(event,'${esc(p.name)}')">${ico('more')}</button>
       </div>
-    </div>`;
+    </article>`;
   window.__chrome = {title:t('list.flows'), icon:'flow',
     actions:`<button class="btn btn-ghost btn-sm" onclick="plImportPick()">${esc(t('c.import'))}</button>
       <input class="pl-file" type="file" id="plImportFile" accept="application/json,.json"

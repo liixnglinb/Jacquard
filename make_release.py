@@ -106,6 +106,7 @@ def main() -> int:
     ap.add_argument("--version", help="写回 app/version.py 并用于产物名")
     ap.add_argument("--notes", default="")
     ap.add_argument("--skip-build", action="store_true")
+    ap.add_argument("--keep-old", action="store_true", help="保留本地旧安装包，发布时不做清理")
     a = ap.parse_args()
 
     if a.version:
@@ -141,7 +142,7 @@ def main() -> int:
 
     setups = sorted(REL.glob(f"{APP}-*-setup.exe"),
                     key=lambda f: [int(x) for x in re.findall(r"\d+", f.stem.split("-setup")[0])])
-    for old in setups[:-2]:
+    for old in ([] if a.keep_old else setups[:-2]):
         old.unlink()
         print(f"[release] 清理本地旧包 {old.name}（只留最近两个）")
 
