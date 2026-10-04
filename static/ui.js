@@ -15,7 +15,7 @@ const DICT = {
     'nav.workflows': '工作流', 'nav.skills': '技能库', 'nav.runs': '运行记录', 'nav.settings': '设置',
     'nav.newTask': '新建任务', 'sb.search': '搜索流程与运行', 'sb.noHit': '没有匹配的流程或运行',
     'sb.liveN': '{n} 个在跑', 'sb.noLive': '当前没有在跑的任务', 'sb.flows': '项目', 'sb.newFlow': '新建项目',
-    'time.now': '刚刚', 'time.m': '{n} 分', 'time.h': '{n} 小时', 'time.d': '{n} 天',
+    'time.now': '刚刚', 'time.m': '{n} 分前', 'time.h': '{n} 小时前', 'time.d': '{n} 天前',
     'sb.noProject': '还没开工的项目 —— 去「工作流」挑一条跑起来',
     'sb.rowMore': '更多操作', 'sb.viewFiles': '查看文件', 'sb.newTaskHere': '在此流程新建任务',
     'sb.archive': '归档', 'sb.unarchive': '取消归档', 'sb.archived': '已归档',
@@ -59,12 +59,12 @@ const DICT = {
     'home.recentEmpty': '还没有运行记录', 'home.engineNone': '智能体未就绪',
 
     /* 工作台（首页） */
-    'task.briefPh': '目标、背景、已有材料、想交付成什么样。',
-    'tk.greet': '今天要跑哪条流程？',
+    'task.briefPh': '输入赛题背景、求解目标或核心假设约束...',
+    'tk.greet': '今天要编排哪条数模流水线？',
     'tk.stepsAria': '这条流程的步骤', 'tk.cpMark': '这一步会停下等确认',
     'tk.noSteps': '这条流程还没有步骤',
     'tk.modelAny': '跟随步骤', 'tk.modelAnyD': '不覆盖，每一步沿用它自己挑的端点',
-    'task.labelPh': '留空则用流程名', 'task.start': '开始全自动执行',
+    'task.labelPh': '任务标识名（可选）', 'task.start': '启动流水线',
     'task.needBrief': '任务说明不能为空', 'task.started': '已启动', 'task.noFlow': '还没有流程，先创建一个',
     'task.dirPh': '工作文件夹（留空=默认工作区）',
     'task.dirTip': '只换智能体干活的那个目录：转录、产物、系统提示仍旧落在软件自己的运行工作区。'
@@ -117,7 +117,7 @@ const DICT = {
     'ed.extHint': '按名字引用，Jacquard 不拷贝也不改写这份技能。',
     'ed.lostSkill': '这份技能在 Jacquard 的目录里已经找不到了。',
     'ed.out': '产物文件', 'ed.outPh': '如 ANALYSIS.md', 'ed.outHint': '写入工作区，后续步骤可引用',
-    'ed.advanced': '高级选项', 'ed.engine': '执行引擎', 'ed.engineDefault': '默认',
+    'ed.advanced': '高级选项', 'ed.engine': '执行引擎', 'ed.engineDefault': '默认引擎',
     'ed.engineHint': '留空=用设置页默认引擎', 'ed.engineNone': '本机未检测到 CLI 智能体，先去设置页确认',
     'ed.engineReady': '已就绪：{list}', 'ed.model': '本步模型', 'ed.modelFollow': '跟随默认预设',
     'ed.modelPreset': '预设：{name}', 'ed.modelRaw': '{model}（裸模型名）',
@@ -133,7 +133,7 @@ const DICT = {
     'ed.saved': '流程已保存', 'ed.unsavedLeave': '这条流程有还没保存的改动，确定离开吗？',
     'ed.needName': '请填写流程名', 'ed.needLabel': '第 {n} 步缺步骤名称',
     'ed.needKey': '第 {n} 步 key「{key}」不合法', 'ed.needSkill': '第 {n} 步「{label}」还没绑定主技能',
-    'ed.notFound': '流程不存在', 'ed.unsavedPreview': '先保存流程，才能预览实际提示词',
+    'ed.notFound': '未找到指定的流程模板', 'ed.unsavedPreview': '先保存流程，才能预览实际提示词',
     'ed.moveUp': '上移', 'ed.moveDown': '下移', 'ed.delStep': '删除步骤', 'ed.newStep': '第 {n} 步',
 
     'sk.title': '技能库', 'sk.new': '新建技能', 'sk.empty': '还没有技能 —— 新建一份，或导入标准 skill 包（zip / SKILL.md）',
@@ -148,7 +148,6 @@ const DICT = {
     'sk.dupe': '另存副本',
     'sk.dupeName': '副本名（英文小写）', 'sk.dupeDone': '已创建副本「{name}」',
     'sk.delConfirm': '确定删除技能「{name}」？引用它的步骤会读不到内容。', 'sk.deleted': '已删除',
-    'sk.empty2': '空',
 
     'set.title': '设置', 'set.back': '返回应用', 'set.search': '搜索设置…', 'set.noHit': '没有匹配的设置项',
     'set.hits': '匹配 {n} 个分区',
@@ -237,7 +236,7 @@ const DICT = {
     'sc.toggleSbD': '折叠态会记住，重启后还是那样。用浏览器打开时 Ctrl+B 和 Ctrl+Shift+B 都是浏览器的书签栏开关，拦不下来 —— 那种情况下点左上角的品牌位。',
     'sc.switchThemeD': '和设置里的「主题」是同一个开关，只是手快一点。',
     'sc.searchSettingsD': '只在设置页生效。',
-    'sc.themeNow.dark': '已切到深色', 'sc.themeNow.light': '已切到浅色',
+    'sc.themeNow.dark': '已切换到暗色主题', 'sc.themeNow.light': '已切换到浅色主题',
 
     'about.grpInfo': '版本与信息',
     'st.grpUsage': '执行量', 'st.grpFlows': '按工作流', 'st.grpClean': '残留',
@@ -295,6 +294,17 @@ const DICT = {
     'pr.modelsEmpty': '端点返回成功，但列表为空', 'pr.modelsFail': '获取失败：{err}',
     'pr.modelsFetching': '正在获取模型列表…', 'pr.baseHint': 'Anthropic 协议填 …/anthropic 形式；OpenAI 兼容填 …/v1 形式。',
     'pr.wireHint': 'codex 引擎用：responses（新）或 chat（兼容旧网关）',
+
+    /* ---- Voyra v11 重构新增（与既有键同义的已合并，不留重复） ---- */
+    'tk.subDesc': '十阶段任务驱动 · 智能体逐步执行 · 实时落盘验证',
+    'ed.unsavedGuard': '当前编辑器存在未保存改动，确定要放弃改动并离开吗？',
+    'ed.dirty': '未保存的改动',
+    'home.allPipelines': '流水线模板', 'home.newPipeline': '新建流水线',
+    'home.plStages': '{n} 阶段', 'home.plCp': '{n} 检查点',
+    'home.plRuns': '{n} 次运行', 'home.plRun': '执行',
+    'run.colStatus': '状态', 'run.colCreated': '创建时间',
+    'sk.searchPh': '搜索技能名称或描述...', 'sk.emptySelect': '从左侧选择一个技能以编辑，或点击新建',
+    'sk.noDesc': '无描述信息',
   },
   en: {
     'brand.name': 'Jacquard', 'brand.sub': 'Local agent pipeline', 'brand.full': 'Jacquard',
@@ -302,7 +312,7 @@ const DICT = {
     'nav.workflows': 'Workflows', 'nav.skills': 'Skills', 'nav.runs': 'Runs', 'nav.settings': 'Settings',
     'nav.newTask': 'New task', 'sb.search': 'Search workflows and runs', 'sb.noHit': 'No matching workflow or run',
     'sb.liveN': '{n} running', 'sb.noLive': 'Nothing is running', 'sb.flows': 'Projects', 'sb.newFlow': 'New project',
-    'time.now': 'now', 'time.m': '{n}m', 'time.h': '{n}h', 'time.d': '{n}d',
+    'time.now': 'Just now', 'time.m': '{n}m ago', 'time.h': '{n}h ago', 'time.d': '{n}d ago',
     'sb.noProject': 'No projects yet — run a workflow to start one',
     'sb.rowMore': 'More actions', 'sb.viewFiles': 'Show files', 'sb.newTaskHere': 'New task in this workflow',
     'sb.archive': 'Archive', 'sb.unarchive': 'Unarchive', 'sb.archived': 'Archived',
@@ -346,12 +356,12 @@ const DICT = {
     'home.recentEmpty': 'No runs yet', 'home.engineNone': 'No agent engine',
 
     /* Bench (home) */
-    'task.briefPh': 'Goal, context, material you already have, what the deliverable should look like.',
-    'tk.greet': 'Which workflow should we run?',
+    'task.briefPh': 'Enter problem background, goals, or core assumptions...',
+    'tk.greet': 'Which pipeline to dispatch today?',
     'tk.stepsAria': 'Steps in this workflow', 'tk.cpMark': 'This step pauses for your confirmation',
     'tk.noSteps': 'This workflow has no steps yet',
     'tk.modelAny': 'Follow steps', 'tk.modelAnyD': "Don't override; each step keeps its own endpoint",
-    'task.labelPh': 'defaults to the workflow name', 'task.start': 'Run end to end',
+    'task.labelPh': 'Task label (optional)', 'task.start': 'Run Pipeline',
     'task.needBrief': 'Task brief is required', 'task.started': 'Started', 'task.noFlow': 'No workflow yet — create one first',
     'task.dirPh': 'Working folder (blank = default workspace)',
     'task.dirTip': 'Only the agent\'s working directory changes — transcripts, artifacts and the system prompt still land in Jacquard\'s own run workspace. Claude supports it; codex reads AGENTS.md from its run directory to get the step instructions, so a custom folder is refused before the run starts.',
@@ -404,7 +414,7 @@ const DICT = {
     'ed.extHint': 'Referenced by name — Jacquard neither copies nor rewrites this skill.',
     'ed.lostSkill': 'This skill is no longer in Jacquard\'s own folder.',
     'ed.out': 'Artifact file', 'ed.outPh': 'e.g. ANALYSIS.md', 'ed.outHint': 'written to the workspace for later steps',
-    'ed.advanced': 'Advanced', 'ed.engine': 'Engine', 'ed.engineDefault': 'Default',
+    'ed.advanced': 'Advanced', 'ed.engine': 'Engine', 'ed.engineDefault': 'Default Engine',
     'ed.engineHint': 'empty = the default engine in Settings', 'ed.engineNone': 'No CLI agent detected — check Settings first',
     'ed.engineReady': 'ready: {list}', 'ed.model': 'Model for this step', 'ed.modelFollow': 'Follow default preset',
     'ed.modelPreset': 'preset: {name}', 'ed.modelRaw': '{model} (raw id)',
@@ -419,7 +429,7 @@ const DICT = {
     'ed.previewBriefPh': 'Type a brief for the preview (optional):', 'ed.save': 'Save workflow',
     'ed.saved': 'Workflow saved', 'ed.unsavedLeave': 'This workflow has unsaved changes. Leave anyway?', 'ed.needName': 'Enter a workflow id', 'ed.needLabel': 'Step {n} has no name',
     'ed.needKey': 'Step {n}: key “{key}” is invalid', 'ed.needSkill': 'Step {n} “{label}” has no main skill',
-    'ed.notFound': 'Workflow not found', 'ed.unsavedPreview': 'Save the workflow before previewing',
+    'ed.notFound': 'Pipeline template not found', 'ed.unsavedPreview': 'Save the workflow before previewing',
     'ed.moveUp': 'Up', 'ed.moveDown': 'Down', 'ed.delStep': 'Delete step', 'ed.newStep': 'Step {n}',
 
     'sk.title': 'Skills', 'sk.new': 'New skill', 'sk.empty': 'No skill yet — create one, or import a standard skill package (zip / SKILL.md)',
@@ -434,7 +444,6 @@ const DICT = {
     'sk.dupe': 'Save a copy',
     'sk.dupeName': 'Copy id (lowercase)', 'sk.dupeDone': 'Created a copy “{name}”',
     'sk.delConfirm': 'Delete skill “{name}”? Steps referencing it will find nothing.', 'sk.deleted': 'Deleted',
-    'sk.empty2': 'empty',
 
     'set.title': 'Settings', 'set.back': 'Back to app', 'set.search': 'Search settings…', 'set.noHit': 'No matching settings',
     'set.hits': '{n} sections matched',
@@ -523,7 +532,7 @@ const DICT = {
     'sc.toggleSbD': 'Remembered across restarts. In a browser Ctrl+B and Ctrl+Shift+B toggle the bookmarks bar and cannot be intercepted — use the brand button at the top left.',
     'sc.switchThemeD': 'The same switch as "Theme" in settings, just one keystroke closer.',
     'sc.searchSettingsD': 'Settings page only.',
-    'sc.themeNow.dark': 'Switched to dark', 'sc.themeNow.light': 'Switched to light',
+    'sc.themeNow.dark': 'Switched to dark theme', 'sc.themeNow.light': 'Switched to light theme',
 
     'about.grpInfo': 'Version and info',
     'st.grpUsage': 'Execution', 'st.grpFlows': 'Per workflow', 'st.grpClean': 'Leftovers',
@@ -582,6 +591,17 @@ const DICT = {
     'pr.modelsEmpty': 'Endpoint answered, but the list is empty', 'pr.modelsFail': 'Fetch failed: {err}',
     'pr.modelsFetching': 'Fetching model list…', 'pr.baseHint': 'Anthropic protocol wants …/anthropic; OpenAI-compatible wants …/v1.',
     'pr.wireHint': 'For the codex engine: responses (new) or chat (legacy gateways)',
+
+    /* ---- Voyra v11 additions (duplicates merged, no redundant keys) ---- */
+    'tk.subDesc': '10-stage execution · Autonomous agent flow · Real-time artifacts',
+    'ed.unsavedGuard': 'Unsaved changes detected. Are you sure you want to discard them?',
+    'ed.dirty': 'Unsaved changes',
+    'home.allPipelines': 'Pipeline Templates', 'home.newPipeline': 'New Pipeline',
+    'home.plStages': '{n} stages', 'home.plCp': '{n} checkpoints',
+    'home.plRuns': '{n} runs', 'home.plRun': 'Run',
+    'run.colStatus': 'Status', 'run.colCreated': 'Created',
+    'sk.searchPh': 'Search skills by name or description...', 'sk.emptySelect': 'Select a skill on the left to edit or click New',
+    'sk.noDesc': 'No description provided',
   },
 };
 
@@ -682,6 +702,86 @@ function icon(name, cls) {
 window.ICON_NAMES = Object.keys(ICONS);
 window.icon = icon;
 
+/* ---------------- 模块 12：v11 统一线性图标（24 网格） ----------------
+   与既有 ICONS 同名的以本段为准（新设计的形状口径覆盖旧图标），
+   因此同样用 Object.assign 合入；ico() 是 v11 代码统一调用的工厂。 */
+const NEW_ICONS = {
+  plus: '<path d="M12 5v14M5 12h14"/>',
+  search: '<circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5 20 20"/>',
+  flow: '<path d="M4 7h6M4 12h10M4 17h5"/><circle cx="18" cy="7" r="2.2"/><circle cx="19" cy="17" r="2.2"/>',
+  skill: '<path d="M7.2 3.6h9.6a1.6 1.6 0 0 1 1.6 1.6v15.2l-6.4-3.9-6.4 3.9V5.2a1.6 1.6 0 0 1 1.6-1.6z"/>',
+  runs: '<circle cx="12" cy="12" r="8.5"/><path d="M12 7v5.2l3.4 2"/>',
+  agent: '<rect x="4" y="4" width="16" height="16" rx="3"/><circle cx="9" cy="10" r="1.5" class="f"/><circle cx="15" cy="10" r="1.5" class="f"/><path d="M8 15h8"/>',
+  setting: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.6 1.6 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.6 1.6 0 0 0-1.8-.3 1.6 1.6 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.2a1.6 1.6 0 0 0-1-1.5 1.6 1.6 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.6 1.6 0 0 0 .3-1.8 1.6 1.6 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.2a1.6 1.6 0 0 0 1.5-1 1.6 1.6 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.6 1.6 0 0 0 1.8.3 1.6 1.6 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.2a1.6 1.6 0 0 0 1 1.5 1.6 1.6 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.6 1.6 0 0 0-.3 1.8 1.6 1.6 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.2a1.6 1.6 0 0 0-1.5 1z"/>',
+  folder: '<path d="M3 6.5A2.5 2.5 0 0 1 5.5 4h3.6a2 2 0 0 1 1.4.6l1.2 1.4h6.8A2.5 2.5 0 0 1 21 8.5v9a2.5 2.5 0 0 1-2.5 2.5h-13A2.5 2.5 0 0 1 3 17.5v-11z"/>',
+  file: '<path d="M6 3.5h7.5L18 8v12.5A1.5 1.5 0 0 1 16.5 22h-10.5A1.5 1.5 0 0 1 4.5 20.5v-15.5A1.5 1.5 0 0 1 6 3.5z"/><path d="M13.5 3.5V8H18"/>',
+  arrowUp: '<path d="M12 19V5M6 11l6-6 6 6"/>',
+  arrowDown: '<path d="M12 5v14M6 13l6 6 6-6"/>',
+  arrowLeft: '<path d="M19 12H5M11 6l-6 6 6 6"/>',
+  play: '<polygon points="6,4 20,12 6,20" class="f"/>',
+  stop: '<rect x="5" y="5" width="14" height="14" rx="2" class="f"/>',
+  trash: '<path d="M4 6h16M10 11v6M14 11v6M5 6l1 14a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2l1-14M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>',
+  shield: '<path d="M12 3.5s7 2 7 8c0 6-7 9-7 9s-7-3-7-9c0-6 7-8 7-8z"/>',
+  warn: '<circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16h.01"/>',
+  checkCircle: '<circle cx="12" cy="12" r="9"/><path d="m8.5 12.5 2.5 2.5 5-5"/>',
+  download: '<path d="M12 4v12M6 11l6 6 6-6M4 20h16"/>',
+  close: '<path d="M6 6l12 12M18 6L6 18"/>',
+  sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/>',
+  server: '<rect x="3" y="4" width="18" height="6" rx="2"/><rect x="3" y="14" width="18" height="6" rx="2"/><line x1="7" y1="7" x2="7.01" y2="7"/><line x1="7" y1="17" x2="7.01" y2="17"/>',
+  stat: '<rect x="4" y="13" width="4" height="7" rx="1"/><rect x="10" y="8" width="4" height="12" rx="1"/><rect x="16" y="4" width="4" height="16" rx="1"/>',
+  command: '<rect x="4" y="4" width="16" height="16" rx="3"/><path d="M9 9h6v6H9z"/>',
+};
+Object.assign(ICONS, NEW_ICONS);
+window.ICON_NAMES = Object.keys(ICONS);
+
+/* v11 统一图标工厂：24 网格、1.8 描边、圆头圆角、纯描边。
+   需要实心点的地方在 path 上挂 class="f"（由 .ic .f 打开填充）。 */
+function ico(name, extraClass = '') {
+  const content = (ICONS[name] != null) ? ICONS[name] : (NEW_ICONS[name] || '');
+  return `<svg class="ic ${extraClass}" viewBox="0 0 24 24" fill="none" stroke="currentColor" `
+    + `stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${content}</svg>`;
+}
+window.ico = ico;
+
+/* ---------------- 模块 12：函数式模板组件（无构建环境下的复用片段） ----------------
+   目标是消除各处独立拷贝的徽标 / 开关 / 模态遮罩外壳。全部返回 HTML 字符串。
+   本文件是独立 IIFE，取不到别的文件里的局部 esc —— 这里自带一份转义。 */
+const escHtml = s => String(s ?? '').replace(/[&<>"']/g,
+  c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+function renderBadge(label, type = 'default') {
+  return `<span class="ff-badge ff-badge-${escHtml(type)}">${escHtml(label)}</span>`;
+}
+function renderSwitch(isChecked, onChangeAttr, id = '') {
+  return `<label class="switch"${id ? ` id="${escHtml(id)}"` : ''}>`
+    + `<input type="checkbox"${isChecked ? ' checked' : ''} onchange="${onChangeAttr}">`
+    + `<span class="slider"></span></label>`;
+}
+function renderModalFrame(modalId, title, bodyHtml, footerButtonsHtml) {
+  return `<div class="modal" id="${escHtml(modalId)}" role="dialog" aria-modal="true"`
+    + ` aria-labelledby="${escHtml(modalId)}_title">`
+    + `<div class="modal-box modal-enter">`
+    + `<div class="modal-top"><h3 id="${escHtml(modalId)}_title">${escHtml(title)}</h3>`
+    + `<button class="modal-x" type="button" aria-label="${escHtml(t('c.close'))}"`
+    + ` onclick="closeModal('${escHtml(modalId)}')">${ico('close')}</button></div>`
+    + `<div class="pv-scroll">${bodyHtml}</div>`
+    + (footerButtonsHtml ? `<div class="modal-foot">${footerButtonsHtml}</div>` : '')
+    + `</div></div>`;
+}
+function openModal(modalId) {
+  const el = document.getElementById(modalId);
+  if (el) el.classList.add('open');
+}
+function closeModal(modalId) {
+  const el = document.getElementById(modalId);
+  if (el) el.classList.remove('open');
+}
+window.renderBadge = renderBadge;
+window.renderSwitch = renderSwitch;
+window.renderModalFrame = renderModalFrame;
+window.openModal = openModal;
+window.closeModal = closeModal;
+
 function t(key, params) {
   /* 有意留空的描述（某些分区不要副标题）必须真的渲染成空，
      用 || 取字典会把空串当缺失、直接把 key 吐到页面上。 */
@@ -724,6 +824,13 @@ function applyAppearance() {
   document.title = t('brand.full');
   const bn = document.getElementById('brandName');
   if (bn) bn.textContent = t('brand.name');
+  /* 同步镜像到 localStorage：index.html 的同步引导脚本据此在首次渲染前
+     就把外观打在 <html> 上，杜绝深色模式启动闪白。 */
+  try {
+    localStorage.setItem('__FF_LOCAL_APPEARANCE', JSON.stringify({
+      theme: APP.theme, sidebar: APP.sidebar, textSize: APP.textSize, font: APP.font,
+    }));
+  } catch (_) {}
 }
 
 /* 只改内存 + 重绘，不落盘：滑块 oninput 走这里，拖动过程不该刷 8 个请求。 */

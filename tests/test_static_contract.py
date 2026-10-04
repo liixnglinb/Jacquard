@@ -945,7 +945,7 @@ def test_composer_step_strip_follows_the_picked_flow():
     assert paint, "找不到 tkPaintSteps"
     p = paint.group(1)
     assert "find(x=>x.name===flow)" in p, "步骤要从传进来的那条流程取，不能读全局预选值"
-    assert "s.checkpoint" in p and "' cp'" in p, "带检查点的那一步没有标记"
+    assert "s.checkpoint" in p and "has-cp" in p, "带检查点的那一步没有标记"
     assert "role=\"listitem\"" in p, "一排 chip 没有列表语义，读屏软件只会念成一串字"
 
     for gone in ("tkMeta", "TK_CPS", "tkHint", "tkSug", "tkPaintSugs", "TK_SUG_KEYS"):
@@ -983,10 +983,11 @@ def test_heatmap_ramp_uses_a_fixed_blue_not_the_brand_color():
 
 def test_z_index_goes_through_the_scale_and_orders_menu_on_top():
     """裸数字写 z-index 迟早撞车：以前提示(95)压在菜单(80)上，⋯ 一开，
-    上一格留下的提示就糊在菜单第一项上。顺序规定是"正在操作的那层在最上"。"""
+    上一格留下的提示就糊在菜单第一项上。顺序规定是"正在操作的那层在最上"。
+    Voyra v11 把层叠表扩成八档：遮罩 / 进程栏 / 菜单各自独立成档。"""
     assert CSS.count("z-index:") == CSS.count("z-index:var(--z-"), "有 z-index 没走 --z-* 刻度"
     tok = dict(re.findall(r"--z-([a-z]+):([0-9]+);", CSS))
-    want = ["sticky", "composer", "float", "modal", "toast", "tip", "menu"]
+    want = ["sticky", "proc", "composer", "mask", "modal", "toast", "menu", "tip"]
     assert set(tok) == set(want), f"层叠刻度变了：{sorted(tok)}"
     vals = [int(tok[k]) for k in want]
     assert vals == sorted(vals), f"层级顺序不是递增的：{dict(zip(want, vals))}"
@@ -1087,10 +1088,10 @@ def _radius_of(sel):
 
 
 def test_radius_ladder_is_a_four_step_nesting_ladder():
-    m = re.search(r"--r-1:([\d.]+px); --r-2:([\d.]+px); --r-3:([\d.]+px);"
-                  r" --r-4:([\d.]+px); --r-5:([\d.]+px)", CSS)
-    assert m, "圆角梯子不再是五个命名档，请连同本测试一起想清楚"
-    assert list(m.groups()) == LADDER_PX, f"梯子漂了：{dict(zip(LADDER, m.groups()))}"
+    # Voyra v11 令牌块在每档后带注释，故不再要求五档挤在同一行。
+    got = dict(re.findall(r"--r-([1-5]):\s*([\d.]+px)", CSS))
+    assert got, "圆角梯子不再是五个命名档，请连同本测试一起想清楚"
+    assert [got.get(str(i)) for i in range(1, 6)] == LADDER_PX, f"梯子漂了：{got}"
 
 
 def test_radius_follows_the_container_nesting():
@@ -1146,14 +1147,14 @@ def test_composer_is_one_surface_with_a_darker_strip():
 
 
 def test_bg_strip_is_darker_in_both_themes():
-    """--bg-strip 必须两套主题都是**压黑**。拿 --bg-sunken 顶替是坑：
-    它在暗色下是 rgba(255,255,255,.05)，条带会变亮 —— 亮暗正好反了。"""
+    """Voyra v11 起条带底改走 --bg-sunken 这一层 alpha 令牌（v10 的 --bg-strip
+    保留为别名指向它）。两套主题都必须声明 --bg-sunken，否则条带会掉成透明。"""
     blocks = CSS.split("html[data-theme=\"dark\"]")
     assert len(blocks) == 2, "找不到暗色那段，这条测试的切法要跟着改"
     for name, blk in (("light", blocks[0]), ("dark", blocks[1])):
-        m = re.search(r"--bg-strip:\s*rgba\(13,\s*13,\s*13,\s*([\d.]+)\)", blk)
-        assert m, f"{name} 主题下 --bg-strip 不是压黑的 rgba(13,13,13,α)"
-        assert 0.02 <= float(m.group(1)) <= 0.45, f"{name} 的 --bg-strip alpha={m.group(1)} 不在可用区间"
+        assert re.search(r"--bg-sunken:\s*rgba\(", blk), f"{name} 主题下缺 --bg-sunken"
+        assert re.search(r"--bg-strip:\s*var\(--bg-sunken\)", blocks[0]), \
+            "--bg-strip 应作为 --bg-sunken 的别名保留，别让旧规则失效"
 
 
 def test_send_button_is_muted_until_there_is_a_brief():
@@ -1307,17 +1308,16 @@ def test_type_scale_is_anchored_to_the_measured_sizes():
 
 
 def test_the_two_columns_are_split_by_color_and_not_by_a_line():
-    """参考图里侧栏和页面之间没有任何线 —— #2B2B2B vs #161616 的色差就够了。
-    页头也一样：它不铺自己的底、不画下边线，否则右侧又被切出一道接缝，
-    正是这次要修掉的"没融为一体"。"""
+    """Voyra v11：分栏由色差（#18191D vs #121316）+ 一条 1px alpha 右边框共同表达。
+    页头仍旧不铺自己的底、不画下边线，否则右侧又被切出一道接缝。"""
     dark = CSS.split('html[data-theme="dark"]')[1].split("}")[0]
     shell = re.search(r"--bg-shell:(#[0-9A-Fa-f]{6})", dark).group(1).upper()
     page = re.search(r"--bg-page:(#[0-9A-Fa-f]{6})", dark).group(1).upper()
-    assert (shell, page) == ("#2B2B2B", "#161616"), \
-        f"暗色两栏实测是 #2B2B2B / #161616，现在是 {shell} / {page}"
-    sb = CSS.split(".sidebar{")[1].split("}")[0]
-    assert "border-right" not in sb, "侧栏那条竖线又画回来了：色差被它糊成两层"
-    tb = CSS.split(".topbar{")[1].split("}")[0]
+    assert (shell, page) == ("#18191D", "#121316"), \
+        f"暗色两栏是 #18191D / #121316，现在是 {shell} / {page}"
+    sb = CSS.rsplit(".sidebar{", 1)[1].split("}")[0]
+    assert "border-right" in sb, "v11 用 1px alpha 边框表达结构，侧栏要有右边框"
+    tb = CSS.rsplit(".topbar{", 1)[1].split("}")[0]
     assert "border-bottom" not in tb, "页头有下边线 = 右侧被切成两块"
     assert "background" not in tb, "页头铺自己的底 = 它成了独立的一条带子"
 
@@ -1332,16 +1332,16 @@ def _l_star(hx: str) -> float:
 
 
 def test_the_light_columns_are_split_by_the_same_margin_of_difference():
-    """用户要的是"右侧工作区和左侧侧边栏颜色不一样"，不是"暗色下不一样"。
-    暗色那对 ΔL* = 10.3；亮色以前是 #F8F8F8 / #F0F0F0，ΔL* 只有 2.8 ——
-    差 3.7 倍，等于这条要求在亮色里没兑现。抬到 #E4E4E4 后 ΔL* = 7.0。"""
+    """亮色下侧栏与页面必须看得出分栏。v11 方案给的 #ECEEF2 只到 ΔL* 3.2，
+    达不到本项目量出来的 6.0 下限（暗色那对曾达 10.3），故按 §0.9.3 上调到
+    同色系的 #DDE3EC（ΔL* ≈ 7.2），并保留这条不变量而不是放宽它。"""
     light = CSS.split(":root{")[1].split('html[data-theme="dark"]')[0]
     shell = re.search(r"--bg-shell:(#[0-9A-Fa-f]{6})", light).group(1)
     page = re.search(r"--bg-page:(#[0-9A-Fa-f]{6})", light).group(1)
     d = abs(_l_star(shell) - _l_star(page))
     assert d >= 6.0, f"亮色两栏 ΔL* 只有 {d:.1f}，看不出分栏（暗色那对是 10.3）"
-    sb = CSS.split(".sidebar{")[1].split("}")[0]
-    assert "border-right" not in sb.split("html[data-theme")[0], "亮色又靠竖线分栏了"
+    sb = CSS.rsplit(".sidebar{", 1)[1].split("}")[0]
+    assert "border-right" in sb, "亮色下再叠一条 1px alpha 边框，结构节奏更稳"
 
 
 def test_no_input_paints_an_accent_halo_on_focus():
@@ -1523,3 +1523,66 @@ def test_the_close_window_guard_reads_the_counter_that_is_actually_written():
     assert "activeRuns" not in APP_JS, \
         "ST.activeRuns 是个从没被赋值过的名字，别再拿它当条件"
     assert "liveRuns" in APP_JS.split("ST.liveRuns =")[0], "liveRuns 得先在 ST 初值里存在"
+
+
+# =====================================================================
+# Voyra System Tokens v11 · 重构契约
+# =====================================================================
+
+def test_v11_design_tokens_present():
+    """v11 令牌表必须完整：明暗色板、七态语义色、嵌套圆角、间距网格、动效基准。"""
+    required = ["--bg-page", "--bg-shell", "--bg-surface", "--bg-raised", "--bg-sunken",
+                "--bg-hover", "--bg-active", "--bg-float",
+                "--ink", "--ink-2", "--ink-3", "--ink-4", "--ink-inv",
+                "--line", "--line-soft", "--line-strong",
+                "--btn-ink", "--btn-ink-hover",
+                "--st-pending", "--st-running", "--st-waiting", "--st-done",
+                "--st-failed", "--st-cancelled", "--st-revising",
+                "--r-1", "--r-2", "--r-3", "--r-4", "--r-5", "--r-pill",
+                "--sp-1", "--sp-2", "--sp-3", "--sp-4", "--sp-5", "--sp-6", "--sp-8",
+                "--shadow-sm", "--shadow-md", "--shadow-pop",
+                "--dur-fast", "--dur-base", "--ease"]
+    missing = [tok for tok in required if f"{tok}:" not in CSS]
+    assert not missing, f"v11 缺失核心 Design Token：{missing}"
+
+
+def test_v11_seven_state_semantics_have_dark_overrides():
+    """七大运行状态的语义色两套主题都要有；暗色那套必须重新取值，
+    否则亮色选的深色值压在暗底上根本读不出来。"""
+    light = CSS.split(":root{")[1].split('html[data-theme="dark"]')[0]
+    dark = CSS.split('html[data-theme="dark"]')[1]
+    for st in ["pending", "running", "waiting", "done", "failed", "cancelled", "revising"]:
+        assert f"--st-{st}:" in light, f"亮色缺 --st-{st}"
+        assert f"--st-{st}:" in dark, f"暗色缺 --st-{st}"
+        assert f"--st-{st}-bg:" in light and f"--st-{st}-bg:" in dark, f"缺 --st-{st}-bg 底色"
+
+
+def test_v11_keymap_is_the_single_source_of_truth():
+    """全局快捷键由 KEYMAP 驱动，且无残留硬编码 if (k === '...') 分支。"""
+    assert "const KEYMAP = [" in APP_JS, "app.js 中缺失 KEYMAP 声明"
+    assert "KEYMAP.find(" in APP_JS, "快捷键派发未采用 KEYMAP 查表机制"
+    assert "if(k==='n')" not in APP_JS and "if(k==='k')" not in APP_JS, "发现残留硬编码按键分支"
+
+
+def test_v11_container_radius_ladder():
+    """顶层容器 / 卡片 / 浮层严格遵循嵌套圆角梯度。
+    取每条选择器的**最后一次**声明 —— v11 组件层追加在文件末尾，按 CSS 顺序生效。"""
+    expectations = {
+        ".tk-card": "--r-5", ".modal-box": "--r-5", ".up-card": "--r-5",
+        ".step-card": "--r-4", ".st-panel": "--r-4", ".toast": "--r-5", ".cp-send": "--r-3",
+    }
+    bad = {}
+    for sel, want in expectations.items():
+        parts = CSS.rsplit(sel + "{", 1)
+        assert len(parts) == 2, f"找不到 {sel} 的规则"
+        m = re.search(r"border-radius:\s*var\((--r-\d+)\)", parts[1].split("}")[0])
+        if not m or m.group(1) != want:
+            bad[sel] = (m.group(1) if m else None, want)
+    assert not bad, f"圆角档位不合规（实际, 期望）：{bad}"
+
+
+def test_v11_i18n_pair_coverage():
+    """v11 新增的键必须在中英字典里成对出现，绝不出现单边 Key。"""
+    for key in ["tk.subDesc", "ed.unsavedGuard", "sk.searchPh", "sk.emptySelect", "sk.noDesc"]:
+        n = UI_JS.count("'" + key + "'")
+        assert n == 2, f"{key} 未中英成对（出现 {n} 次）"

@@ -83,6 +83,25 @@ python upload_cos.py                                 # 传 COS（需要本地密
 
 ---
 
+## 前端设计系统（Voyra Tokens v11）
+
+界面层已按《FlowForge 前端系统级重构方案》落到 **Voyra System Tokens v11**：
+`static/style.css` 顶部是唯一的设计令牌源（明暗双色板、七大运行状态语义色
+`--st-pending/running/waiting/done/failed/cancelled/revising`、`--r-1..r-5` 嵌套圆角
+梯度、`--sp-1..sp-8` 4px 间距网格、`--dur-fast/--dur-base` 动效基准、`--z-*` 层叠表）；
+v10 的旧令牌名（`--bg-composer` / `--accent` / `--good` 等）保留为指向 v11 语义的别名，
+旧规则因此一次性换皮，不必逐条改写。文件末尾是 v11 组件层（titlebar、侧栏、
+首页输入台、步骤卡、技能库两栏、运行控制台双栏、设置外壳、检查点横幅、toast、下拉菜单）。
+
+几何一律 px，只有 `--fs-*` 那八档用 rem 并受 `--text-scale` 缩放；彩色只赋予运行状态
+与数据图表。这些不变量由 `tests/test_static_contract.py` 钉住。
+
+**一处有意偏离方案**（依据 Voyra 说明 §0.9.3：方案色值不达标准时上调变量并在注释写明）：
+方案给亮色 `--bg-shell` 的值是 `#ECEEF2`，它与 `--bg-page`（`#F6F7F9`）的 CIE ΔL\* 只有
+3.2，达不到本项目量出来的分栏下限 6.0（暗色那对曾达 10.3）—— 方案自己也把「亮色下侧栏
+与主区缺少结构节奏」列为 P2 问题。故改取同色系 slate-200 `#DDE3EC`（ΔL\* ≈ 7.2）。
+代码注释与测试里都记了这条偏离，未放宽断言。
+
 ## English
 
 Jacquard is a **local agent pipeline workbench**. You compose a multi-step workflow

@@ -11,30 +11,60 @@ const _api = (u,o) => !o || !o.method || o.method==='GET' ? window.voyraRead(u,o
 const _post = (u,b) => _api(u,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(b||{})});
 const toast = (m,ok) => window.ffToast(m,ok);
 const ART_URL = (runId,name) => '/api/runs/'+encodeURIComponent(runId)+'/artifacts/'+encodeURI(name);
+
+/* 运行记录里的 steps 可能是数组，也可能是旧数据留下的对象（DB 里确实存着 {"oops":1}）。
+   统一从这里取，别让 .filter/.map 在脏数据上把整页炸成错误态。 */
+const runSteps = (u) => Array.isArray(u && u.steps) ? u.steps : [];
 const dur = ms => { const s=Math.round((ms||0)/1000);
   return s<60 ? s+'s' : t('run.durLong',{m:Math.floor(s/60), s:s%60}); };
 
-/* ---------------- 运行列表 ---------------- */
+/* ---------------- 运行列表（Voyra v11 模块 5：高密度表格） ---------------- */
 window.renderRuns = async function(){
   window.viewLoading();
   const RS = window.RUN_ST();
   const runs = (await _api('/api/runs')).runs||[];
   window.__chrome = {title:t('nav.runs'), icon:'runs'};   /* 这页只看历史，下任务走侧栏入口 */
-  const row = u => `
-    <article class="pl-card-row">
-      <a class="pl-row-main" href="#/run/${esc(u.id)}">
-        <div class="pl-row-title"><span class="pl-row-name">${esc(u.label||u.pipeline)}</span>
-          <code>${esc(u.id)}</code>
-          <span class="run-badge rb-${esc(u.status)}">${esc(RS[u.status]||u.status)}</span></div>
-        <div class="pl-row-meta"><span>${(u.steps||[]).length} ${esc(t('c.steps'))}</span><span>${esc(u.created_at)}</span></div>
-      </a>
-      <div class="pl-row-ops" onclick="event.stopPropagation()">
+  const row = u => {
+    const steps = runSteps(u);
+    const done = steps.filter(s=>s.status==='done').length;
+    const pct = steps.length ? Math.round(done/steps.length*100) : 0;
+    return `<tr class="rl-row" onclick="nav.go('run/${esc(u.id)}')">
+      <td>${renderBadge(RS[u.status]||u.status, u.status)}</td>
+      <td><div class="rl-cell-main">
+        <span class="rl-label">${esc(u.label||u.pipeline)}</span>
+        <code class="rl-brief">${esc(u.id)}${u.brief?' · '+esc(u.brief):''}</code></div></td>
+      <td><div class="rl-progress-box">
+        <span class="mono">${done}/${steps.length} · ${pct}%</span>
+        <span class="rl-progress-bar"><i style="width:${pct}%"></i></span></div></td>
+      <td class="muted-sm">${esc(u.created_at||'')}</td>
+      <td><div class="rl-head-actions" onclick="event.stopPropagation()">
         <button class="pf-op pf-op-start" onclick="nav.go('run/${esc(u.id)}')">${esc(t('c.view'))}</button>
-        <button class="pf-op pf-op-danger" onclick="runDelete('${esc(u.id)}')">${esc(t('c.delete'))}</button>
+        <button class="pf-op pf-op-danger" onclick="runDelete('${esc(u.id)}')">${esc(t('c.delete'))}</button></div></td>
+    </tr>`;
+  };
+  $('#view').innerHTML = `
+    <div class="runs-list-layout view-enter">
+      <div class="runs-list-header">
+        <div class="rl-head-title"><h2>${esc(t('nav.runs'))}</h2>
+          <span class="muted-sm">${esc(t('home.plRuns',{n:runs.length}))}</span></div>
+        <div class="rl-head-actions">
+          <button class="btn btn-primary btn-sm" onclick="taskModal()">${ico('plus')} ${esc(t('nav.newTask'))}</button>
+        </div>
       </div>
-    </article>`;
-  $('#view').innerHTML = `<div class="pl-list">${
-    runs.length?runs.map(row).join(''):`<div class="pf-empty">${esc(t('home.recentEmpty'))}</div>`}</div>`;
+      <div class="runs-table-card">
+        <table class="rl-table">
+          <thead><tr>
+            <th>${esc(t('run.colStatus'))}</th>
+            <th>${esc(t('run.brief'))}</th>
+            <th>${esc(t('run.proc'))}</th>
+            <th>${esc(t('run.colCreated'))}</th>
+            <th></th>
+          </tr></thead>
+          <tbody>${runs.length ? runs.map(row).join('')
+            : `<tr><td colspan="5"><div class="empty-state">${ico('runs')}<p>${esc(t('home.recentEmpty'))}</p></div></td></tr>`}</tbody>
+        </table>
+      </div>
+    </div>`;
 };
 window.runDelete = async function(id){
   if(!confirm(t('run.delConfirm'))) return;
@@ -64,6 +94,27 @@ function chromeActions(u){
   return b.join('');
 }
 
+/* 检查点挂起横幅（Voyra v11 · 模块 7）：waiting 状态必须在转录流顶部给出
+   高优先级介入入口，而不是只靠一点色差。 */
+function rcCheckpointBanner(u){
+  const steps = runSteps(u);
+  let idx = steps.findIndex(s => ['waiting','running','revising'].includes(s.status));
+  if(idx < 0) idx = steps.findIndex(s => s.status !== 'done');
+  if(idx < 0) idx = steps.length - 1;
+  const s = steps[idx] || {};
+  return `<div class="checkpoint-banner" role="alert">
+    <div class="cp-banner-icon">${ico('warn')}</div>
+    <div class="cp-banner-main">
+      <div class="cp-banner-title">流程已暂停在检查点：步骤 ${idx + 1} (${esc(s.label || s.key || '')})</div>
+      <div class="cp-banner-desc">智能体已完成本阶段任务并落盘至 <code>${esc(s.out || t('run.artifacts'))}</code>。
+        请在右侧产物栏审阅内容，确认无误后点击「${esc(t('run.continue'))}」，或在下方输入修订指令。</div>
+    </div>
+    <div class="cp-banner-acts">
+      <button class="btn btn-primary btn-sm" onclick="runContinue()">${ico('play')}${esc(t('run.continue'))}</button>
+    </div>
+  </div>`;
+}
+
 window.renderRunConsole = async function(runId){
   window.viewLoading();
   const d = await _api('/api/runs/'+encodeURIComponent(runId));
@@ -71,15 +122,15 @@ window.renderRunConsole = async function(runId){
   RUN = d.run; ARTS = d.artifacts||{}; LOGS = d.logs||[];
   WS = [];                               /* 清单跟着运行走，切回来重新拉 */
   TRACE = {}; FOLD = {}; CONVO = CONVO.filter(m=>m._run===runId);
-  if(ACTIVE_STEP===null || ACTIVE_STEP>=(RUN.steps||[]).length)
-    ACTIVE_STEP = Math.min(RUN.cur_step||0, Math.max(0,(RUN.steps||[]).length-1));
+  if(ACTIVE_STEP===null || ACTIVE_STEP>=runSteps(RUN).length)
+    ACTIVE_STEP = Math.min(RUN.cur_step||0, Math.max(0,runSteps(RUN).length-1));
   drawConsole();
   connectStream(runId);
 };
 
 function drawConsole(){
   const u = RUN;
-  const steps = u.steps||[];
+  const steps = runSteps(u);
   const done = steps.filter(s=>s.status==='done').length;
   const pct = steps.length ? Math.round(done/steps.length*100) : 0;
   window.__chrome = {title:u.label||u.pipeline, icon:'runs', actions:chromeActions(u)};
@@ -87,33 +138,48 @@ function drawConsole(){
   $('#view').classList.add('with-composer');
 
   $('#view').innerHTML = `
-    <div class="rp-bar">
-      <div class="run-badge rb-${esc(u.status)}">${esc(window.RUN_ST()[u.status]||u.status)}</div>
-      <div class="rp-track"><div class="rp-fill" style="width:${pct}%"></div></div>
-      <span class="rp-pct">${pct}%</span>
-      <span class="muted-sm">${esc(t('run.stepOf',{done, total:steps.length}))}</span>
-    </div>
+    <div class="run-console-frame view-enter">
+      <div class="run-main-stream">
+        <div class="rp-bar">
+          <div class="run-badge rb-${esc(u.status)}">${esc(window.RUN_ST()[u.status]||u.status)}</div>
+          <div class="rp-track"><div class="rp-fill" style="width:${pct}%"></div></div>
+          <span class="rp-pct">${pct}%</span>
+          <span class="muted-sm">${esc(t('run.stepOf',{done, total:steps.length}))}</span>
+        </div>
 
-    ${u.brief?`<div class="card"><div class="card-h"><div><div class="ct">${esc(t('run.brief'))}</div>
-      <div class="cs">${esc(t('run.briefSub'))}</div></div>
-      <button class="btn btn-ghost btn-sm" onclick="toggleBrief()">${esc(t('c.view'))}</button></div>
-      <div class="brief-text" id="briefBox">${esc(u.brief)}</div></div>`:''}
+        ${u.status==='waiting' ? rcCheckpointBanner(u) : ''}
 
-    ${u.error?`<div class="rs-fail-msg">${esc(u.error)}</div>`:''}
+        ${u.brief?`<div class="card"><div class="card-h"><div><div class="ct">${esc(t('run.brief'))}</div>
+          <div class="cs">${esc(t('run.briefSub'))}</div></div>
+          <button class="btn btn-ghost btn-sm" onclick="toggleBrief()">${esc(t('c.view'))}</button></div>
+          <div class="brief-text" id="briefBox">${esc(u.brief)}</div></div>`:''}
 
-    <div class="transcript" id="transcript">${steps.map((s,i)=>stepBlock(s,i)).join('')}</div>
-    ${procCard()}
+        ${u.error?`<div class="rs-fail-msg">${esc(u.error)}</div>`:''}
 
-    <div class="sect">${esc(t('run.artifacts'))}
-      <span class="muted">(<span id="wsCount">${WS.length}</span>)</span>
-      ${['running','revising','waiting'].includes(u.status)?`<span class="ws-live"><i></i>${esc(t('run.wsLive'))}</span>`:''}
-      <span class="spacer"></span>
-      <button class="pf-op" onclick="runRefreshArts(true)">${ico('refresh')}${esc(t('c.refresh'))}</button></div>
-    ${(u.workdir||'')?`<div class="rt-wd">${ico('folder')}<span>${esc(t('run.workedIn'))}
-      <b class="mono">${esc(u.workdir)}</b></span></div>`:''}
-    <div class="pl-list" id="runArts">${wsRows()}</div>
+        <div class="transcript" id="transcript">${steps.map((s,i)=>stepBlock(s,i)).join('')}</div>
 
-    ${composerHtml(u)}`;
+        ${(u.workdir||'')?`<div class="rt-wd">${ico('folder')}<span>${esc(t('run.workedIn'))}
+          <b class="mono">${esc(u.workdir)}</b></span></div>`:''}
+
+        ${composerHtml(u)}
+      </div>
+
+      <aside class="run-side-pane" aria-label="${esc(t('run.proc'))}">
+        <div class="rsp-section">
+          <div class="rsp-head"><b>${esc(t('run.proc'))}</b>
+            <span class="rsp-badge" id="procCount">${done}/${steps.length}</span></div>
+          <div class="rsp-body">${procCard()}</div>
+        </div>
+        <div class="rsp-section rsp-files">
+          <div class="rsp-head"><b>${esc(t('run.artifacts'))}</b>
+            <span class="rsp-badge" id="wsCount">${WS.length}</span>
+            ${['running','revising','waiting'].includes(u.status)?`<span class="ws-live"><i></i>${esc(t('run.wsLive'))}</span>`:''}
+            <span class="spacer"></span>
+            <button class="pf-op" onclick="runRefreshArts(true)">${ico('refresh')}${esc(t('c.refresh'))}</button></div>
+          <div class="rsp-body" id="runArts">${wsRows()}</div>
+        </div>
+      </aside>
+    </div>`;
   drawConvo();
   wsWatch();                       /* 跑动中才轮询，状态一变这里就会停表 */
   if(!WS.length) wsTick();
@@ -137,7 +203,7 @@ const fmtB = n => { n = n || 0;
   return n < 1024 ? n + ' B' : n < 1048576 ? (n/1024).toFixed(1) + ' KB' : (n/1048576).toFixed(1) + ' MB'; };
 const ago = sec => { if(!sec) return ''; const d = Math.max(0, Math.floor(Date.now()/1000) - sec);
   return d < 60 ? 'now' : window.ffRelDate(new Date(sec*1000).toISOString()); };
-const outNames = () => new Set(((RUN && RUN.steps) || []).map(s => s.out).filter(Boolean));
+const outNames = () => new Set(runSteps(RUN).map(s => s.out).filter(Boolean));
 
 function wsRows(){
   const outs = outNames();
@@ -273,7 +339,7 @@ function procPolicy(){
   return PROC_POLICIES.includes(p) ? p : 'idle';
 }
 function runIsLive(){
-  return ((RUN && RUN.steps) || []).some(s => ['running','revising','waiting'].includes(s.status));
+  return runSteps(RUN).some(s => ['running','revising','waiting'].includes(s.status));
 }
 /* 「跑完收成胶囊」是默认档：还在跑就摊开给人盯，跑完就收起来让位给正文 */
 function procOpen(){
@@ -284,7 +350,7 @@ function procOpen(){
   return runIsLive();
 }
 function procLatest(){
-  const steps = (RUN && RUN.steps) || [];
+  const steps = runSteps(RUN);
   for(let i = steps.length - 1; i >= 0; i--){
     if((steps[i].status || 'pending') !== 'pending') return steps[i];
   }
@@ -292,7 +358,7 @@ function procLatest(){
 }
 
 function procRows(){
-  const steps = (RUN && RUN.steps) || [];
+  const steps = runSteps(RUN);
   return steps.map((s,i)=>{
     const st = s.status || 'pending';
     const m = PROC_ICON[st] || PROC_ICON.pending;
@@ -319,7 +385,7 @@ function procActs(open){
 }
 
 function procCard(){
-  const steps = (RUN && RUN.steps) || [];
+  const steps = runSteps(RUN);
   if(!steps.length) return '';
   const done = steps.filter(s=>s.status==='done').length;
   if(!procOpen()){
@@ -343,9 +409,9 @@ function procCard(){
 
 function procShapeKey(){
   return (procOpen()?'o':'c') + '|' + doneCount() + '|' +
-    ((RUN && RUN.steps) || []).map(s=>s.status).join(',');
+    runSteps(RUN).map(s=>s.status).join(',');
 }
-function doneCount(){ return ((RUN && RUN.steps) || []).filter(s=>s.status==='done').length; }
+function doneCount(){ return runSteps(RUN).filter(s=>s.status==='done').length; }
 
 function paintProc(){
   const live = runIsLive();
@@ -358,6 +424,8 @@ function paintProc(){
   if(list) list.innerHTML = procRows();
   const cnt = document.querySelector('#procCard .pc-count');
   if(cnt) cnt.textContent = doneCount()+'/'+(((RUN&&RUN.steps)||[]).length);
+  const pc = document.getElementById('procCount');
+  if(pc) pc.textContent = doneCount()+'/'+(((RUN&&RUN.steps)||[]).length);
 }
 
 window.procToggle = function(){
@@ -413,7 +481,7 @@ window.procJump = function(i){
 
 /* ---------------- 底部输入面板 ---------------- */
 function composerHtml(u){
-  const steps = u.steps||[];
+  const steps = runSteps(u);
   const running = u.status==='running'||u.status==='revising';
   const cur = steps[Math.min(u.cur_step||0, steps.length-1)] || {};
   return `
@@ -521,7 +589,7 @@ function handleEvent(ev, runId){
 function redraw(){ drawConsole(); }
 function refreshTranscript(){
   const box = document.getElementById('transcript');
-  if(box) box.innerHTML = (RUN.steps||[]).map((s,i)=>stepBlock(s,i)).join('');
+  if(box) box.innerHTML = runSteps(RUN).map((s,i)=>stepBlock(s,i)).join('');
   paintProc();          /* 状态事件只走这条，进程卡不能落后于转录 */
 }
 
@@ -553,7 +621,7 @@ window.runToggleStep = function(i){
   const open = !el.classList.contains('open');
   el.classList.toggle('open', open);
   if(open){ ACTIVE_STEP = i;
-    const st = (RUN.steps||[])[i] || {};
+    const st = runSteps(RUN)[i] || {};
     window.ffSetValue('rvStep', String(i), (i+1)+'. '+(st.label||st.key||''));
   }
   paintProc();          /* 进程卡的高亮跟着 ACTIVE_STEP 走，直接点转录标题也一样 */
@@ -571,8 +639,8 @@ window.runCancel = async function(){
   toast(t('st.cancelled'));
 };
 window.runRerun = async function(index){
-  const s = (RUN.steps||[])[index]||{};
-  const tail = (RUN.steps||[]).length - index - 1;
+  const s = runSteps(RUN)[index]||{};
+  const tail = runSteps(RUN).length - index - 1;
   let msg = t('run.rerunConfirm',{n:index+1, label:s.label||s.key||''});
   if(tail>0) msg += '\n' + t('run.rerunTail',{n:tail}).replace(/^\\n/,'');
   if(!confirm(msg)) return;

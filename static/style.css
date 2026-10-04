@@ -1,184 +1,189 @@
 /* ==========================================================================
-   Loom 织流 · 设计系统 v10 —— 表面层级逐值取自开源参考实现 ZCode 的
-   Zai Light / Zai Dark（zai-org/ZCode，packages/ui/src/styles.css）。
-   三条和 v9 不同的规矩：
-     ① 品牌位交给黑白反转（亮 #000 / 暗 #fff），不再是一种色相；
-        蓝色从"品牌"降级成 --accent-soft 那层弱强调底色，图表色板另立。
-     ② 边框 / 悬停 / 选中 / 内凹一律 alpha，不给实色 —— 同一枚令牌压在页面、
-        卡片、浮层上都成立，不必为每层各配一套。
-     ③ 墨色 = 一个基色 + oklab alpha 递减（foreground / subtle / subtlest）。
-   暗色下侧栏与背景同值（#161616），层级靠卡片抬起来，不靠接缝。
-   文字大小只缩放 --fs-* 那八档（它们用 rem）；几何一律 px，不跟字号走。
-   界面缩放走 body{zoom}，那才是「把整个界面放大」的控件。两条轴各管各的。
+   Voyra System Tokens v11 · 流水线工具专业版
+   --------------------------------------------------------------------------
+   设计气质：Linear 的工业感排版阶梯 + GitHub Actions 的清晰流水线拓扑 +
+   Raycast / Codex 的纯净工具属性。去拟物化、极度克制的高对比度界面。
+   纯黑白主基调（亮色黑字白底、暗色白字黑底），彩色仅赋予七大运行状态
+   （Pending / Running / Waiting / Done / Failed / Cancelled / Revising）
+   及必要的数据图表，绝无多余装饰性光晕。
+
+   两条硬规矩：
+     ① 信息优先 —— 弱化界面容器，用 1px 精确边框（alpha 通道）与背景明度阶梯
+        表达结构，而不是阴影与接缝。
+     ② 圆角跟「可见圆角容器的嵌套层数」走：壳 ≥ r-4 → 控件 r-3 → 内嵌项 r-2；
+        r-1 是底线；r-5 只给顶层主输入台 / 对话框 / toast / 更新卡；
+        r-pill 只给进度条轨道与专属状态圆点，禁止常规按钮滥用。
+
+   几何一律 px（--sp-* 走 4px 网格）；只有 --fs-* 那八档受 --text-scale 缩放。
    ========================================================================== */
 :root{
   color-scheme: light;
 
-  --bg-page:#F8F8F8;        /* background */
-  /* 侧栏比内容区深一档，容器感靠这一档色差而不是接缝。原来写 #F0F0F0：
-     实测 L* 97.6 vs 94.8，ΔL* 只有 2.8，而暗色那对是 10.3 —— 亮色下这道分栏
-     几乎看不出来，等于用户要的"两边不一样"只在暗色成立。抬到 #E4E4E4 后 ΔL* 7.0。 */
-  --bg-shell:#E4E4E4;
-  --bg-raised:#FFFFFF;      /* panel */
-  --bg-sunken:rgba(13,13,13,.03);   /* surface：内凹、代码块、占位 */
-  --bg-inset:rgba(13,13,13,.05);
-  --bg-hover:rgba(13,13,13,.05);
-  --bg-active:rgba(13,13,13,.08);   /* selected。ZCode 亮色下 hover/选中同为 .05，
-                                       我们这里选中要压过悬停（选中行同时不加粗），
-                                       所以刻意抬到 .08 —— 唯一的有意偏离。 */
-  --bg-composer:#FFFFFF;    /* card */
-  /* 输入台顶部那条「选哪条流程」的条带：比 composer 再暗一档。
-     两套主题都是**压黑** —— 不能拿 --bg-sunken 顶替，它在暗色下是压白（会变亮）。
-     实测参考实现：body #2B2B2B，条带 #222222。 */
-  --bg-strip:rgba(13,13,13,.035);
-  --bg-pill:rgba(13,13,13,.05);
-  --bg-float:#FFFFFF;       /* popover */
-  --bg-panel:#FFFFFF;       /* panel */
-  --line-panel:rgba(13,13,13,.1);
-  --bg-ctl:#FFFFFF;         /* input */
+  /* ---------------- 色彩：亮色主题 ---------------- */
+  --bg-page:#F6F7F9;
+  /* 有意偏离 v11 方案给的 #ECEEF2：它与 --bg-page 的 ΔL* 只有 3.2，而本项目
+     量出来的分栏下限是 6.0（暗色那对曾达 10.3）。方案自己也把「亮色侧栏与主区
+     缺少结构节奏」列为 P2 问题，照搬等于不解决它。改取同色系的 slate-200
+     #DDE3EC，ΔL* ≈ 7.2，既满足门槛又留在 v11 的冷灰家族里。
+     （依据 Voyra 说明 §0.9.3：方案色值不达无障碍/可辨标准时上调变量并在注释里写明） */
+  --bg-shell:#DDE3EC;
+  --bg-surface:#FFFFFF;
+  --bg-raised:#FFFFFF;
+  --bg-sunken:rgba(15,23,42,.04);
+  --bg-active:rgba(15,23,42,.08);
+  --bg-hover:rgba(15,23,42,.05);
+  --bg-float:#FFFFFF;
 
-  /* 墨色只定一个基色，其余三档用 oklab alpha 递减 —— 抄 ZCode 的
-     foreground / -subtle(60%) / -subtlest(40%)。 */
-  --ink:#262626;
-  --ink-2:color-mix(in oklab, var(--ink) 78%, transparent);
-  --ink-3:color-mix(in oklab, var(--ink) 60%, transparent);
-  --ink-4:color-mix(in oklab, var(--ink) 42%, transparent);
+  --ink:#0F172A;
+  --ink-2:#334155;
+  --ink-3:#64748B;
+  --ink-4:#94A3B8;
   --ink-inv:#FFFFFF;
 
-  --line:rgba(13,13,13,.1);
-  --line-soft:rgba(13,13,13,.06);
-  --line-strong:rgba(13,13,13,.15);
+  --line-soft:rgba(15,23,42,.06);
+  --line:rgba(15,23,42,.12);
+  --line-strong:rgba(15,23,42,.24);
 
-  /* 品牌 = 黑。蓝色搬去 --accent-soft 那层弱强调底色（ZCode 的 --color-accent
-     本来就是淡蓝 #ebf4ff / #001d3d），图表色板 --chart-* 独立不受影响。 */
-  --accent:#000000;
-  --accent-deep:#1F1F1F;
-  --accent-soft:#EBF4FF;
-  --accent-line:rgba(13,13,13,.35);
-  --on-accent:#FFFFFF;
+  --btn-ink:#0F172A;
+  --btn-ink-hover:#1E293B;
+
+  /* ---------------- 语义状态色（流水线专用） ----------------
+     只用于色块 / 描边 / 图标 / 状态点；承载小字的场合一律用 --ink* 系墨色，
+     避免亮色底上 #10B981（约 2.3:1）、#F59E0B（约 2.0:1）这类值拉低正文可读性。 */
+  --st-pending:#64748B;   --st-pending-bg:rgba(100,116,139,.12);
+  --st-running:#2563EB;   --st-running-bg:rgba(37,99,235,.12);
+  --st-waiting:#D97706;   --st-waiting-bg:rgba(217,119,6,.12);
+  --st-done:#059669;      --st-done-bg:rgba(5,150,105,.12);
+  --st-failed:#DC2626;    --st-failed-bg:rgba(220,38,38,.12);
+  --st-cancelled:#475569; --st-cancelled-bg:rgba(71,85,105,.12);
+  --st-revising:#7C3AED;  --st-revising-bg:rgba(124,58,237,.12);
+
+  /* ---------------- 圆角梯度（依嵌套层级严格约束） ---------------- */
+  --r-1:4px;   /* 内嵌标签、微型按钮 */
+  --r-2:6px;   /* 菜单项、常规输入框、小按钮 */
+  --r-3:8px;   /* 下拉浮层、卡片内嵌模块、图标按钮 */
+  --r-4:12px;  /* 第一层独立卡片、工作流步骤卡、面板 */
+  --r-5:16px;  /* 顶层主输入台、模态弹窗、更新卡片 */
+  --r-pill:999px; /* 进度条轨道、专属状态圆点（禁止常规按钮滥用） */
+
+  /* ---------------- 间距（4px 网格体系） ---------------- */
+  --sp-1:4px; --sp-2:8px; --sp-3:12px; --sp-4:16px;
+  --sp-5:20px; --sp-6:24px; --sp-8:32px;
+
+  /* ---------------- 字体排印阶梯 ---------------- */
+  --text-scale:1;
+  --font-ui:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+  --font-mono:"JetBrains Mono","Cascadia Code","Fira Code",Consolas,monospace;
+
+  /* 八档字号：1rem = 14px（受 html{font-size:calc(14px * var(--text-scale))} 缩放）。
+     这是全站唯一允许用 rem 的地方 —— 几何一律 px，否则选「特大」会把图标和间距
+     一起放大，和「界面缩放」的职责重叠。 */
+  --fs-micro:.72rem;    /* 10.1 */
+  --fs-meta:.86rem;     /* 12.0 */
+  --fs-sub:.93rem;      /* 13.0 */
+  --fs-body:1rem;       /* 14.0 */
+  --fs-lead:1.14rem;    /* 16.0 */
+  --fs-stat:1.29rem;    /* 18.0 */
+  --fs-h2:1.43rem;      /* 20.0 */
+  --fs-h1:1.93rem;      /* 27.0 */
+
+  /* ---------------- 阴影与深度 ---------------- */
+  --shadow-sm:0 1px 2px 0 rgba(0,0,0,.05);
+  --shadow-md:0 4px 6px -1px rgba(0,0,0,.08),0 2px 4px -2px rgba(0,0,0,.04);
+  --shadow-pop:0 12px 24px -4px rgba(0,0,0,.12),0 4px 8px -2px rgba(0,0,0,.06);
+
+  /* ---------------- 层叠上下文 ---------------- */
+  --z-sticky:10; --z-proc:40; --z-composer:50; --z-mask:80;
+  --z-modal:90; --z-toast:100; --z-menu:110; --z-tip:120;
+
+  /* ---------------- 动效基准 ---------------- */
+  --ease:cubic-bezier(.16,1,.3,1);
+  --dur-fast:120ms;
+  --dur-base:180ms;
+
+  --titlebar-h:38px;
+  --sidebar-w:224px;
+  --rail-w:56px;
+  --topbar-h:46px;
+  --content-w:1080px;
+  --ui-zoom:1;
+
+  /* ---------------- 兼容别名（v10 名称 → v11 语义） ----------------
+     全站旧规则仍在引用这些名字；把它们指向 v11 语义，等于一次性换皮，
+     不必逐条改写上千条既有规则。 */
+  --bg-composer:var(--bg-surface);
+  --bg-panel:var(--bg-surface);
+  --bg-ctl:var(--bg-surface);
+  --bg-inset:var(--bg-sunken);
+  --bg-strip:var(--bg-sunken);
+  --bg-pill:var(--bg-sunken);
+  --line-panel:var(--line);
+  --accent:var(--btn-ink);
+  --accent-deep:var(--btn-ink-hover);
+  --accent-soft:var(--st-running-bg);
+  --accent-line:var(--line-strong);
+  --on-accent:var(--ink-inv);
+  --on-solid:#FFFFFF;
+  --good:var(--st-done);   --good-soft:var(--st-done-bg);
+  --bad:var(--st-failed);  --bad-soft:var(--st-failed-bg);
+  --warn:var(--st-waiting);--warn-soft:var(--st-waiting-bg);
+  --info:var(--st-running);--info-soft:var(--st-running-bg);
+  --shadow-composer:var(--shadow-sm);
+  --slide:var(--dur-fast) var(--ease);
+  --z-float:var(--z-proc);
+
   /* 分类色板：只给趋势图的线与环形图的扇区用。六档各自独立取色，一律不跟
-     --accent —— 参考实现里第一档原本复用品牌色，结果它那套纯黑/纯白主题下
-     整条线直接消失；我们这边换强调色时两张图会一起变，读者以为数据动了。
-     色相按 蓝→绿→紫→红→橙→青 排，相邻两档在明度和色相上都拉开距离。 */
+     --accent —— 换强调色时两张图不该一起变，否则读者以为数据动了。 */
   --chart-1:#2F6FE4; --chart-2:#2FA35F; --chart-3:#7A5AF8;
   --chart-4:#E0483D; --chart-5:#E08A1E; --chart-6:#0E9AA7;
-  --on-solid:#FFFFFF;   /* 实色填充（报错 / 成功）上的文字；暗色那套另给近黑，见下 */
 
-  --good:#1A8B4C;   --good-soft:#E9F5EE;
-  --bad:#CC3B33;    --bad-soft:#FBECEA;
-  --warn:#B0770B;   --warn-soft:#FBF2E0;
-  --info:#2F6FD0;   --info-soft:#EBF2FC;
-
-  --btn-ink:#000000;  --btn-ink-hover:#262626;
-
-  /* 圆角跟"可见圆角容器的嵌套层数"走，不跟元素大小或重要性走（照参考实现 DESIGN.md:285-341）：
-     第一个圆角容器 r-4；往里一层 r-3，再往里 r-2、r-1，r-1 是底线。
-     r-5 只有四个批准例外：主输入台壳 / 对话框壳 / toast / 品牌图标底板。
-     壳里的控件看父壳：父 ≥ r-4 → 控件 r-3；父 r-3 → r-2；父 r-2/r-1 → r-1。
-     r-pill 只给故意的胶囊（进度条、滑块、更新胶囊），按钮/标签/计数器不算。 */
-  --r-1:4px; --r-2:6px; --r-3:8px; --r-4:12px; --r-5:16px; --r-pill:999px;
-/* 字号刻度：内容一律取这 8 档，别再造新数值。
-   1rem = 14px（受 --text-scale 缩放）。这八档不是自己排的：
-   参考实现的刻度表是「围绕 --ui-font-size(默认 14px) 做加减」= 18/16/14/13/12/10
-   （DESIGN.md:190-199），前六档逐值对齐；stat/h2 之上再留两档给数据大字和页标题，
-   最大那档 1.93rem = 27px 是**量出来的**（首页大标题 12 个全角位墨迹宽 325 CSS，
-   步进 27.1；字高 27.3 互证）。
-   这是全站唯一允许用 rem 的地方 —— 几何用 rem 会被字号设置连带放大。 */
-  --fs-micro:.72rem;    /* 10.1  对齐 ui-xs */
-  --fs-meta:.86rem;     /* 12.0  对齐 ui-sm */
-  --fs-sub:.93rem;      /* 13.0  对齐 ui-caption */
-  --fs-body:1rem;       /* 14.0  对齐 ui-base */
-  --fs-lead:1.14rem;    /* 16.0  对齐 ui-lg */
-  --fs-stat:1.29rem;    /* 18.0  对齐 ui-xl，也是统计条那排数字 */
-  --fs-h2:1.43rem;      /* 20.0  页标题：刻度表最大只到 18，这一档是我们的例外 */
-  --fs-h1:1.93rem;      /* 27.0  实测首页大标题 */
-  --ease:cubic-bezier(.2,.7,.2,1);
-  --slide:.14s var(--ease);
-  --shadow-pop:0 16px 40px -12px rgba(0,0,0,.18),0 2px 6px -2px rgba(0,0,0,.08);
-  --shadow-composer:0 1px 2px rgba(0,0,0,.05),0 8px 24px -12px rgba(0,0,0,.14);
-
-  /* 层叠刻度：谁压谁只看这张表，别在规则里拍脑袋写数字。
-     顺序是"用户正在操作的那一层在最上"—— 菜单 > 悬停提示 > toast > 弹窗。
-     以前提示(95)压在菜单(80)上：⋯ 一开，上一格留下的提示就糊在菜单第一项上。 */
-  --z-sticky:1;      /* 运行台那条工具栏 */
-  --z-composer:30;   /* 贴在输入区的 composer */
-  --z-float:40;      /* 进程卡、窄屏抽屉这类贴边浮层 */
-  --z-modal:60;      /* 对话框遮罩 */
-  --z-toast:80;      /* 一次性回执 */
-  --z-tip:90;        /* 自研 tooltip */
-  --z-menu:100;      /* 所有菜单：.ff-menu / .pc-menu / 侧栏底部弹层 */
-
-  --font-ui:"MiSansWeb","MiSans",-apple-system,"Segoe UI",system-ui,"PingFang SC","Microsoft YaHei UI","Hiragino Sans GB",sans-serif;
-  --font-mono:ui-monospace,"Cascadia Code","JetBrains Mono","SFMono-Regular",Consolas,Menlo,monospace;
-
-  --text-scale:1;
-  --ui-zoom:1;
-  --content-w:1180px;
-  --sidebar-w:244px;
-  --rail-w:56px;
-  /* 标题行高：参考图量的 —— 顶部那条带子 56 原图 px ≈ 37 CSS，取整 40。 */
-  --titlebar-h:40px;
-  --topbar-h:52px;
-
-  /* 明暗磁贴和强调色色板要显示「另一个主题长什么样」，不能跟着当前主题走，
+  /* 明暗磁贴要显示「另一个主题长什么样」，不能跟着当前主题走，
      所以这几个色值固定写在 :root，故意不随 html[data-theme] 变。 */
-  --sw-lite-bg:#FCFCFC;  --sw-lite-line:#DCDCDC;
+  --sw-lite-bg:#F6F7F9;  --sw-lite-line:#DCDCDC;
   --sw-dark-bg:#1F1F1F;  --sw-dark-line:#3A3A3A;
 }
 
+/* ---------------- 色彩：暗色主题 ---------------- */
 html[data-theme="dark"]{
   color-scheme: dark;
 
-  /* 2026-09-24 按参考图像素重定：侧栏从 #161616 抬到 #2B2B2B，和卡片 / 浮层 / 输入
-     同一个值 —— 规则是「凡是浮在页面上的表面都同色，页面本身最深」，分栏靠色差
-     （实测侧栏 #2B2B2B / 页面 #161616，亮度差约一倍）而不是靠一条 1px 竖线。
-     面板 #202020 保留：它是设置页那种内凹列表的底，比页面亮一档、比卡片暗一档。 */
-  --bg-page:#161616;
-  --bg-shell:#2B2B2B;
-  --bg-raised:#202020;
-  --bg-sunken:rgba(255,255,255,.05);
-  --bg-inset:rgba(255,255,255,.07);
+  --bg-page:#121316;
+  --bg-shell:#18191D;
+  --bg-surface:#1E2025;
+  --bg-raised:#24262D;
+  --bg-sunken:rgba(255,255,255,.04);
+  --bg-active:rgba(255,255,255,.08);
   --bg-hover:rgba(255,255,255,.05);
-  --bg-active:rgba(255,255,255,.10);
-  --bg-composer:#2B2B2B;
-  /* 压黑 .19：43 → 34.6 ≈ 实测条带 #232323（原来 .3 压到 #1F1F1F，比它狠了一档） */
-  --bg-strip:rgba(13,13,13,.19);
-  --bg-pill:rgba(255,255,255,.08);
-  --bg-float:#2B2B2B;
-  --bg-panel:#202020;
-  --line-panel:rgba(255,255,255,.1);
-  --bg-ctl:#2B2B2B;
+  --bg-float:#242730;
 
-  --ink:#D4D4D4;
-  --ink-2:color-mix(in oklab, var(--ink) 78%, transparent);
-  --ink-3:color-mix(in oklab, var(--ink) 60%, transparent);
-  --ink-4:color-mix(in oklab, var(--ink) 42%, transparent);   /* ZCode 这里用 30%，
-     但落在 #161616 上只有 2.32:1，比上一轮对比度专项抬上来的
-     #656565（3.04）还低 —— 占位符和弱图标不能更糊，所以刻意停在 42%。 */
-  --ink-inv:#161616;
+  --ink:#F8FAFC;
+  --ink-2:#CBD5E1;
+  --ink-3:#94A3B8;
+  --ink-4:#64748B;
+  --ink-inv:#0F172A;
 
-  --line:rgba(255,255,255,.1);
-  --line-soft:rgba(255,255,255,.065);
-  --line-strong:rgba(255,255,255,.15);
+  --line-soft:rgba(255,255,255,.06);
+  --line:rgba(255,255,255,.12);
+  --line-strong:rgba(255,255,255,.22);
 
-  /* 品牌 = 白：暗色下主按钮是白底黑字（参考图上那颗"重启以更新"）。 */
-  --accent:#FFFFFF;
-  --accent-deep:#E6E6E6;
-  --accent-soft:#001D3D;
-  --accent-line:rgba(255,255,255,.45);
-  --on-accent:#161616;
+  --btn-ink:#FFFFFF;
+  --btn-ink-hover:#E2E8F0;
+
+  --st-pending:#94A3B8;   --st-pending-bg:rgba(148,163,184,.14);
+  --st-running:#3B82F6;   --st-running-bg:rgba(59,130,246,.16);
+  --st-waiting:#F59E0B;   --st-waiting-bg:rgba(245,158,11,.16);
+  --st-done:#10B981;      --st-done-bg:rgba(16,185,129,.16);
+  --st-failed:#EF4444;    --st-failed-bg:rgba(239,68,68,.18);
+  --st-cancelled:#64748B; --st-cancelled-bg:rgba(100,116,139,.16);
+  --st-revising:#8B5CF6;  --st-revising-bg:rgba(139,92,246,.16);
+
+  --shadow-sm:0 1px 2px 0 rgba(0,0,0,.35);
+  --shadow-md:0 4px 6px -1px rgba(0,0,0,.45),0 2px 4px -2px rgba(0,0,0,.3);
+  --shadow-pop:0 16px 32px -4px rgba(0,0,0,.6),0 4px 12px -2px rgba(0,0,0,.4);
+
+  --on-solid:#0E1512;
   --chart-1:#4D8BF7; --chart-2:#4CC77E; --chart-3:#9B87FF;
   --chart-4:#FF6B5E; --chart-5:#F0A840; --chart-6:#3FC8D4;
-  --on-solid:#0E1512;   /* 暗色这套 good/bad 偏亮，白字只有 2.5:1；改近黑后 7.4 / 5.8 */
-
-  --good:#4EB77C;   --good-soft:rgba(78,183,124,.13);
-  --bad:#E8695F;    --bad-soft:rgba(232,105,95,.13);
-  --warn:#D9A441;   --warn-soft:rgba(217,164,65,.13);
-  --info:#6BA4E8;   --info-soft:rgba(107,164,232,.13);
-
-  --btn-ink:#FFFFFF;  --btn-ink-hover:#D8D8D8;
-  --shadow-pop:0 18px 44px -12px rgba(0,0,0,.66),0 2px 6px -2px rgba(0,0,0,.5);
-  --shadow-composer:0 1px 2px rgba(0,0,0,.3),0 10px 28px -14px rgba(0,0,0,.7);
 }
 
 html[data-font="os"]{ --font-ui:-apple-system,"Segoe UI",system-ui,"PingFang SC","Microsoft YaHei UI","Hiragino Sans GB",sans-serif; }
@@ -405,7 +410,7 @@ body{
 }
 a{color:inherit;text-decoration:none}
 button,input,textarea,select{font:inherit;color:inherit}
-:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+:focus-visible{outline:2px solid var(--st-running);outline-offset:2px}
 ::selection{background:var(--accent-soft);color:var(--ink)}
 ::-webkit-scrollbar{width:10px;height:10px}
 ::-webkit-scrollbar-track,::-webkit-scrollbar-corner{background:transparent}
@@ -1440,4 +1445,539 @@ html[data-theme="light"] .modal{background:rgba(20,20,20,.32)}
 @media (prefers-reduced-motion:reduce){
   *,*::before,*::after{animation-duration:.01ms !important;animation-iteration-count:1 !important;
     transition-duration:.01ms !important}
+}
+
+/* ==========================================================================
+   Voyra v11 · 组件层（重构追加段）
+   本段为文档《FlowForge 前端系统级重构方案》模块 1–12 的落地样式。
+   与既有规则同选择器时本段在后，按 CSS 顺序自然覆盖，无需删改旧规则。
+   ========================================================================== */
+
+/* ---------------- 模块 9：动效基准 ---------------- */
+@keyframes slideFadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+@keyframes popFadeIn{from{opacity:0;transform:translate(-50%,-46%) scale(.97)}to{opacity:1;transform:translate(-50%,-50%) scale(1)}}
+@keyframes pulseLive{0%{transform:scale(.95);opacity:.8}50%{transform:scale(1.15);opacity:1}100%{transform:scale(.95);opacity:.8}}
+.view-enter{animation:slideFadeIn var(--dur-base) var(--ease) both}
+.modal-enter{animation:popFadeIn var(--dur-base) var(--ease) both}
+@media (prefers-reduced-motion: reduce){
+  *,*::before,*::after{
+    animation-duration:.01ms !important;
+    animation-iteration-count:1 !important;
+    transition-duration:.01ms !important;
+    scroll-behavior:auto !important;
+  }
+}
+
+/* ---------------- 模块 1：窗口标题栏与顶层外壳 ---------------- */
+.titlebar{height:var(--titlebar-h);display:flex;align-items:stretch;background:transparent;
+  user-select:none;-webkit-user-select:none}
+.tlb-left{width:var(--sidebar-w);flex-shrink:0;display:flex;align-items:center;
+  padding:0 var(--sp-3);background:var(--bg-shell);border-bottom:1px solid var(--line-soft);
+  transition:width var(--dur-fast) var(--ease)}
+.tlb-right{flex:1;min-width:0;display:flex;align-items:center;
+  background:var(--bg-page);border-bottom:1px solid var(--line-soft)}
+.tlb-brand{display:inline-flex;align-items:center;gap:var(--sp-2);min-width:0}
+.tlb-brand .sb-logo{width:20px;height:20px;border-radius:var(--r-1);flex-shrink:0}
+.tlb-brand .sb-name{font-size:var(--fs-sub);font-weight:600;color:var(--ink);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tlb-drag{flex:1;height:100%}
+.tlb-acts{display:flex;align-items:center;gap:2px;padding-right:var(--sp-2)}
+.tlb-win{display:flex;align-items:stretch;height:100%}
+.tlb-win[hidden]{display:none !important}
+.tlb-wb{display:inline-flex;align-items:center;justify-content:center;width:44px;height:100%;
+  border:none;background:transparent;color:var(--ink-3);cursor:pointer;
+  transition:background var(--dur-fast),color var(--dur-fast)}
+.tlb-wb:hover{background:var(--bg-hover);color:var(--ink)}
+.tlb-wb.tlb-wclose:hover{background:var(--st-failed);color:var(--ink-inv)}
+
+/* ---------------- 模块 1：侧边栏与折叠轨道 ---------------- */
+.sidebar{width:var(--sidebar-w);background:var(--bg-shell);display:flex;flex-direction:column;
+  border-right:1px solid var(--line-soft);transition:width var(--dur-fast) var(--ease)}
+.sb-scroll{flex:1;min-height:0;overflow-y:auto;padding:var(--sp-2);display:flex;
+  flex-direction:column;gap:var(--sp-2)}
+.sb-nav{display:flex;flex-direction:column;gap:2px}
+.sb-item{display:flex;align-items:center;gap:var(--sp-2);height:34px;padding:0 var(--sp-3);
+  border-radius:var(--r-2);border:none;background:transparent;color:var(--ink-2);
+  font-size:var(--fs-sub);text-decoration:none;cursor:pointer;width:100%;box-sizing:border-box;
+  transition:background var(--dur-fast),color var(--dur-fast)}
+.sb-item:hover{background:var(--bg-hover);color:var(--ink)}
+.sb-item.active{background:var(--bg-active);color:var(--ink);font-weight:600}
+.sb-item .ic{width:16px;height:16px;color:var(--ink-3);flex-shrink:0}
+.sb-item.active .ic{color:var(--btn-ink)}
+.sb-kbd{margin-left:auto;font-family:var(--font-mono);font-size:var(--fs-micro);color:var(--ink-4);
+  background:var(--bg-sunken);padding:1px 5px;border-radius:var(--r-1)}
+.sb-group{display:flex;align-items:center;justify-content:space-between;
+  padding:var(--sp-3) var(--sp-3) var(--sp-1);font-size:var(--fs-micro);font-weight:600;
+  color:var(--ink-4);letter-spacing:.04em;text-transform:uppercase}
+.sb-runlist{display:flex;flex-direction:column;gap:2px;margin-left:var(--sp-3);
+  padding-left:var(--sp-2);border-left:1px solid var(--line-soft)}
+.sb-sub{height:28px;padding:0 var(--sp-2);font-size:var(--fs-meta)}
+.sb-sub .sb-rtag{margin-left:auto;font-family:var(--font-mono);font-size:var(--fs-micro);color:var(--ink-4)}
+.sb-foot{display:flex;align-items:center;gap:var(--sp-2);padding:var(--sp-2) var(--sp-3);
+  border-top:1px solid var(--line-soft)}
+.sb-me{display:flex;align-items:center;gap:var(--sp-2);flex:1;min-width:0;height:32px;
+  padding:0 var(--sp-2);border-radius:var(--r-2);border:none;background:transparent;
+  color:var(--ink-2);font-size:var(--fs-meta);cursor:pointer}
+.sb-me:hover{background:var(--bg-hover);color:var(--ink)}
+.sb-me-av{width:18px;height:18px;border-radius:var(--r-1);background:var(--bg-sunken);
+  display:flex;align-items:center;justify-content:center;font-size:var(--fs-micro);font-weight:700}
+.sb-me-name{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:left}
+
+html[data-sidebar="collapsed"]{--sidebar-w:var(--rail-w)}
+html[data-sidebar="collapsed"] .sb-name,
+html[data-sidebar="collapsed"] .sb-kbd,
+html[data-sidebar="collapsed"] .sb-group,
+html[data-sidebar="collapsed"] .sb-runlist,
+html[data-sidebar="collapsed"] .sb-me-name,
+html[data-sidebar="collapsed"] .sb-me-chev,
+html[data-sidebar="collapsed"] .sb-item span{display:none !important}
+html[data-sidebar="collapsed"] .tlb-left{justify-content:center;padding:0}
+html[data-sidebar="collapsed"] .sb-item{justify-content:center;padding:0}
+html[data-sidebar="collapsed"] .sb-me{justify-content:center;padding:0}
+
+/* ---------------- 模块 2：首页输入台与十阶段芯片 ---------------- */
+.home-stage{width:min(760px,94vw);max-width:none;margin:var(--sp-6) auto;padding:0 var(--sp-4) var(--sp-8);
+  display:flex;flex-direction:column;gap:var(--sp-6);box-sizing:border-box}
+.tk-greet-row{display:flex;flex-direction:column;gap:var(--sp-1)}
+.tk-greet{font-size:var(--fs-h1);font-weight:600;color:var(--ink);letter-spacing:-.02em;
+  margin:0;text-align:left}
+.tk-sub{font-size:var(--fs-meta);color:var(--ink-3);line-height:1.5}
+.tk-card{background:var(--bg-surface);border:1px solid var(--line);border-radius:var(--r-5);
+  box-shadow:var(--shadow-sm);display:flex;flex-direction:column;
+  transition:border-color var(--dur-fast) var(--ease),box-shadow var(--dur-fast) var(--ease)}
+.tk-card:focus-within{border-color:var(--line-strong);box-shadow:var(--shadow-md)}
+.tk-top{display:flex;align-items:center;gap:var(--sp-3);padding:var(--sp-3) var(--sp-4);
+  border-bottom:1px solid var(--line-soft)}
+.tk-dirw{display:flex;align-items:center;gap:var(--sp-2);flex:1;min-width:0;
+  background:var(--bg-sunken);padding:0 var(--sp-3);height:30px;border-radius:var(--r-2)}
+.tk-dirw .ic{width:14px;height:14px;color:var(--ink-4);flex-shrink:0}
+.tk-dir{border:none;background:transparent;color:var(--ink);font-size:var(--fs-meta);
+  font-family:var(--font-mono);width:100%}
+.tk-dir:focus{outline:none}
+.tk-field{padding:var(--sp-3) var(--sp-4)}
+.tk-input{width:100%;border:none;background:transparent;color:var(--ink);font-size:var(--fs-body);
+  line-height:1.6;resize:vertical;min-height:72px;box-sizing:border-box;font-family:inherit}
+.tk-input:focus{outline:none}
+.tk-input::placeholder{color:var(--ink-4)}
+.tk-bar{display:flex;align-items:center;gap:var(--sp-3);padding:var(--sp-3) var(--sp-4);
+  border-top:1px solid var(--line-soft)}
+.tk-steps-preview{display:flex;align-items:center;gap:var(--sp-1);flex:1;min-width:0;
+  overflow-x:auto;scrollbar-width:none}
+.tk-steps-preview::-webkit-scrollbar{display:none}
+.tk-step-chip{display:inline-flex;align-items:center;gap:4px;height:22px;padding:0 6px;
+  border-radius:var(--r-1);background:var(--bg-sunken);font-size:var(--fs-micro);
+  color:var(--ink-2);white-space:nowrap;flex-shrink:0}
+.tk-step-chip i{font-family:var(--font-mono);font-style:normal;color:var(--ink-4)}
+.tk-step-chip.has-cp{border:1px solid var(--st-waiting);color:var(--ink)}
+.tk-step-empty{font-size:var(--fs-micro);color:var(--ink-4)}
+.tk-name{border:1px solid var(--line);background:var(--bg-sunken);border-radius:var(--r-2);
+  height:30px;padding:0 var(--sp-3);font-size:var(--fs-meta);color:var(--ink);width:150px}
+.tk-name:focus{outline:none;border-color:var(--line-strong);background:var(--bg-surface)}
+.cp-send{width:32px;height:32px;border-radius:var(--r-3);border:none;background:var(--btn-ink);
+  color:var(--ink-inv);display:inline-flex;align-items:center;justify-content:center;cursor:pointer;
+  flex-shrink:0;transition:transform var(--dur-fast) var(--ease),opacity var(--dur-fast)}
+.cp-send:hover{opacity:.9}
+.cp-send:active{transform:scale(.95)}
+.cp-send:disabled{opacity:.4;cursor:not-allowed}
+
+/* ---------------- 模块 3：流程编排器 · 步骤卡片 ---------------- */
+.steps-flow-container{display:flex;flex-direction:column;gap:var(--sp-3)}
+.step-card{display:flex;gap:var(--sp-4);background:var(--bg-surface);border:1px solid var(--line);
+  border-radius:var(--r-4);padding:var(--sp-4);position:relative;
+  transition:border-color var(--dur-fast) var(--ease)}
+.step-card:hover{border-color:var(--line-strong)}
+.step-rail-left{display:flex;flex-direction:column;align-items:center;width:24px;flex-shrink:0}
+.step-badge{width:24px;height:24px;border-radius:var(--r-2);background:var(--bg-sunken);
+  color:var(--ink-2);font-family:var(--font-mono);font-size:var(--fs-meta);font-weight:600;
+  display:flex;align-items:center;justify-content:center}
+.step-connector{width:2px;flex:1;background:var(--line-soft);margin:var(--sp-2) 0}
+.step-content{flex:1;display:flex;flex-direction:column;gap:var(--sp-3);min-width:0}
+.step-header{display:flex;align-items:center;justify-content:space-between;gap:var(--sp-3)}
+.step-ident{display:flex;align-items:center;gap:var(--sp-2);flex:1;min-width:0}
+.step-ipt-label{font-size:var(--fs-body);font-weight:600;color:var(--ink);border:none;
+  background:transparent;min-width:0;flex:1}
+.step-ipt-label:focus{outline:none;border-bottom:1px solid var(--btn-ink)}
+.step-key-tag,.step-ipt-key{font-size:var(--fs-micro);background:var(--bg-sunken);padding:2px 6px;
+  border-radius:var(--r-1);color:var(--ink-3);font-family:var(--font-mono);border:none}
+.step-roles{flex-shrink:0}
+.step-role-btn{display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 var(--sp-3);
+  border-radius:var(--r-2);border:1px solid var(--line);background:var(--bg-sunken);
+  color:var(--ink-2);font-size:var(--fs-micro);cursor:pointer;
+  transition:background var(--dur-fast),border-color var(--dur-fast),color var(--dur-fast)}
+.step-role-btn:hover{border-color:var(--line-strong)}
+.step-role-btn.is-rev{background:var(--st-revising-bg);border-color:var(--st-revising);color:var(--st-revising)}
+.step-actions{display:flex;align-items:center;gap:2px;flex-shrink:0}
+.step-grid{display:grid;grid-template-columns:1fr 1fr;gap:var(--sp-4)}
+.st-field{display:flex;flex-direction:column;gap:var(--sp-1);min-width:0}
+.st-lbl{font-size:var(--fs-micro);color:var(--ink-3);font-weight:500}
+.st-input{height:30px;padding:0 var(--sp-3);border-radius:var(--r-2);border:1px solid var(--line);
+  background:var(--bg-surface);color:var(--ink);font-size:var(--fs-meta);box-sizing:border-box;width:100%}
+.st-input:focus{outline:none;border-color:var(--line-strong)}
+.st-input-wrap{display:flex;align-items:center;gap:var(--sp-2);height:30px;padding:0 var(--sp-3);
+  border-radius:var(--r-2);border:1px solid var(--line);background:var(--bg-surface)}
+.st-input-wrap .ic{width:14px;height:14px;color:var(--ink-4);flex-shrink:0}
+.st-input-wrap input{border:none;background:transparent;color:var(--ink);font-size:var(--fs-meta);
+  width:100%;font-family:var(--font-mono)}
+.st-input-wrap input:focus{outline:none}
+.step-footer{display:flex;align-items:center;justify-content:space-between;padding-top:var(--sp-2);
+  border-top:1px solid var(--line-soft)}
+.step-cp-toggle{display:inline-flex;align-items:center;gap:var(--sp-2);font-size:var(--fs-meta);
+  cursor:pointer;color:var(--ink-2)}
+.step-cp-toggle input{display:none}
+.cp-indicator{width:12px;height:12px;border-radius:var(--r-1);border:1px solid var(--line-strong);
+  display:inline-block;flex-shrink:0}
+.step-cp-toggle input:checked + .cp-indicator{background:var(--st-waiting);border-color:var(--st-waiting)}
+.step-adv-btn{display:inline-flex;align-items:center;gap:6px;border:none;background:transparent;
+  color:var(--ink-3);font-size:var(--fs-meta);cursor:pointer;padding:4px 6px;border-radius:var(--r-1)}
+.step-adv-btn:hover{background:var(--bg-hover);color:var(--ink)}
+.step-adv-panel{margin-top:var(--sp-2);padding:var(--sp-3);background:var(--bg-sunken);
+  border-radius:var(--r-3)}
+.adv-grid{display:grid;grid-template-columns:1fr 1fr;gap:var(--sp-4)}
+.step-add-row{display:flex;justify-content:center;padding:var(--sp-2) 0}
+.editor-layout{display:flex;flex-direction:column;gap:var(--sp-4);max-width:var(--content-w);
+  margin:0 auto;padding:var(--sp-5) var(--sp-6)}
+.ed-header{display:flex;align-items:center;justify-content:space-between;gap:var(--sp-3);
+  padding-bottom:var(--sp-3);border-bottom:1px solid var(--line-soft)}
+.ed-title-cluster{display:flex;align-items:center;gap:var(--sp-2);min-width:0;flex:1}
+.ed-emoji{font-size:var(--fs-lead)}
+.ed-name-input{font-size:var(--fs-lead);font-weight:600;color:var(--ink);border:none;
+  background:transparent;min-width:0;flex:1}
+.ed-name-input:focus{outline:none;border-bottom:1px solid var(--btn-ink)}
+.ed-slug{font-family:var(--font-mono);font-size:var(--fs-micro);color:var(--ink-4);
+  background:var(--bg-sunken);padding:2px 6px;border-radius:var(--r-1)}
+.ed-dirty-dot{color:var(--st-waiting);font-size:var(--fs-stat);line-height:1}
+.ed-actions{display:flex;align-items:center;gap:var(--sp-2);flex-shrink:0}
+
+/* ---------------- 模块 4：技能库（两栏分流） ---------------- */
+.skills-layout{display:flex;flex:1;min-height:0;height:100%}
+.skills-sidebar{width:288px;flex-shrink:0;border-right:1px solid var(--line-soft);
+  background:var(--bg-shell);display:flex;flex-direction:column;min-height:0}
+.skills-act-bar{display:flex;align-items:center;gap:var(--sp-2);padding:var(--sp-3)}
+.skills-nav-list{flex:1;min-height:0;overflow-y:auto;padding:0 var(--sp-2) var(--sp-3);
+  display:flex;flex-direction:column;gap:2px}
+.sk-nav-item{display:flex;flex-direction:column;gap:3px;padding:var(--sp-2) var(--sp-3);
+  border-radius:var(--r-2);border:none;background:transparent;text-align:left;cursor:pointer;
+  width:100%;box-sizing:border-box;transition:background var(--dur-fast)}
+.sk-nav-item:hover{background:var(--bg-hover)}
+.sk-nav-item.active{background:var(--bg-active)}
+.sk-nav-title{display:flex;align-items:center;justify-content:space-between;gap:var(--sp-2)}
+.sk-nav-title b{font-size:var(--fs-sub);font-weight:600;color:var(--ink);overflow:hidden;
+  text-overflow:ellipsis;white-space:nowrap}
+.sk-bytes-badge{font-family:var(--font-mono);font-size:var(--fs-micro);color:var(--ink-4);
+  background:var(--bg-sunken);padding:1px 5px;border-radius:var(--r-1);flex-shrink:0}
+.sk-bytes-badge.warn{color:var(--st-waiting);background:var(--st-waiting-bg)}
+.sk-nav-desc{font-size:var(--fs-micro);color:var(--ink-3);overflow:hidden;text-overflow:ellipsis;
+  white-space:nowrap}
+.skills-editor-pane{flex:1;min-width:0;min-height:0;display:flex;flex-direction:column;
+  background:var(--bg-page)}
+.sk-editor-wrap{display:flex;flex-direction:column;flex:1;min-height:0}
+.sk-pane-header{display:flex;align-items:center;justify-content:space-between;gap:var(--sp-3);
+  padding:var(--sp-3) var(--sp-5);border-bottom:1px solid var(--line-soft);background:var(--bg-surface)}
+.sk-pane-title{display:flex;align-items:center;gap:var(--sp-2);min-width:0}
+.sk-pane-title h3{font-size:var(--fs-body);font-weight:600;color:var(--ink);margin:0}
+.sk-tag-pill{font-size:var(--fs-micro);color:var(--ink-3);background:var(--bg-sunken);
+  padding:2px 8px;border-radius:var(--r-pill)}
+.sk-path-hint{font-family:var(--font-mono);font-size:var(--fs-micro);color:var(--ink-4)}
+.sk-pane-actions{display:flex;align-items:center;gap:var(--sp-2);flex-shrink:0}
+.sk-editor-body{flex:1;min-height:0;display:flex;flex-direction:column;padding:var(--sp-4) var(--sp-5)}
+.sk-meta-bar{display:flex;align-items:center;justify-content:space-between;gap:var(--sp-3);
+  padding-bottom:var(--sp-2)}
+.sk-counter-label{font-family:var(--font-mono);font-size:var(--fs-micro);color:var(--ink-3)}
+.sk-counter-label.over-limit{color:var(--st-failed)}
+.sk-tip-text{font-size:var(--fs-micro);color:var(--ink-4)}
+.sk-textarea{flex:1;min-height:0;width:100%;box-sizing:border-box;resize:none;
+  background:var(--bg-surface);border:1px solid var(--line);border-radius:var(--r-4);
+  padding:var(--sp-4);color:var(--ink);font-size:var(--fs-sub);line-height:1.7;font-family:var(--font-mono)}
+.sk-textarea:focus{outline:none;border-color:var(--line-strong)}
+
+/* ---------------- 模块 5：运行控制台（双栏固定） ---------------- */
+.run-console-frame{display:flex;align-items:flex-start;gap:0;min-height:0;background:var(--bg-page)}
+.run-main-stream{flex:1;min-width:0;display:flex;flex-direction:column}
+.rc-header{height:var(--topbar-h);display:flex;align-items:center;justify-content:space-between;
+  gap:var(--sp-3);padding:0 var(--sp-6);border-bottom:1px solid var(--line-soft);
+  background:var(--bg-surface);flex-shrink:0}
+.rc-title-cluster{display:flex;align-items:center;gap:var(--sp-3);min-width:0}
+.rc-title-cluster h2{font-size:var(--fs-body);font-weight:600;color:var(--ink);margin:0;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rc-id{font-family:var(--font-mono);font-size:var(--fs-micro);color:var(--ink-4);
+  background:var(--bg-sunken);padding:1px 6px;border-radius:var(--r-1)}
+.rc-actions{display:flex;align-items:center;gap:var(--sp-2);flex-shrink:0}
+.transcript-viewport{flex:1;min-height:0;overflow-y:auto;padding:var(--sp-6);
+  display:flex;flex-direction:column;gap:var(--sp-4)}
+/* 悬浮进程卡改造：不再 position:fixed 遮挡转录，改为常驻右栏（sticky 跟随滚动）。 */
+.run-side-pane{width:300px;flex-shrink:0;align-self:flex-start;position:sticky;
+  top:var(--topbar-h);max-height:calc(100vh - var(--topbar-h));overflow-y:auto;
+  border-left:1px solid var(--line-soft);background:var(--bg-surface);
+  display:flex;flex-direction:column;min-height:0}
+.run-side-pane .proc-card{position:static;width:auto;max-width:none;top:auto;right:auto;
+  box-shadow:none;background:transparent}
+.run-side-pane .proc-card.pill{width:auto;max-width:none}
+.rsp-section{display:flex;flex-direction:column;min-height:0;border-bottom:1px solid var(--line-soft)}
+.rsp-section.rsp-files{flex:1}
+.rsp-head{display:flex;align-items:center;justify-content:space-between;gap:var(--sp-2);
+  padding:var(--sp-3) var(--sp-4);border-bottom:1px solid var(--line-soft);
+  font-size:var(--fs-sub);font-weight:600;color:var(--ink);flex-shrink:0}
+.rsp-badge{font-family:var(--font-mono);font-size:var(--fs-micro);color:var(--ink-4);
+  background:var(--bg-sunken);padding:1px 6px;border-radius:var(--r-1)}
+.rsp-body{padding:var(--sp-3);overflow-y:auto;display:flex;flex-direction:column;gap:var(--sp-2)}
+.composer-dock{border-top:1px solid var(--line-soft);background:var(--bg-surface);
+  padding:var(--sp-3) var(--sp-6);flex-shrink:0}
+.cp-row{display:flex;align-items:center;gap:var(--sp-2)}
+
+/* 状态圆点与语义色映射 */
+.st-dot{width:8px;height:8px;border-radius:var(--r-pill);display:inline-block;flex-shrink:0}
+.st-pending{background:var(--st-pending)}
+.st-running{background:var(--st-running);animation:pulseLive 1.4s infinite}
+.st-waiting{background:var(--st-waiting);box-shadow:0 0 0 3px var(--st-waiting-bg)}
+.st-done{background:var(--st-done)}
+.st-failed{background:var(--st-failed)}
+.st-cancelled{background:var(--st-cancelled)}
+.st-revising{background:var(--st-revising);animation:pulseLive 1.4s infinite}
+.st-bg-pending{background:var(--st-pending-bg)}
+.st-bg-running{background:var(--st-running-bg)}
+.st-bg-waiting{background:var(--st-waiting-bg)}
+.st-bg-done{background:var(--st-done-bg)}
+.st-bg-failed{background:var(--st-failed-bg)}
+.st-bg-cancelled{background:var(--st-cancelled-bg)}
+.st-bg-revising{background:var(--st-revising-bg)}
+
+/* 十阶段进度行 */
+.proc-step-row{display:flex;align-items:center;gap:var(--sp-2);padding:6px var(--sp-2);
+  border-radius:var(--r-2);cursor:pointer;font-size:var(--fs-meta);color:var(--ink-2)}
+.proc-step-row:hover{background:var(--bg-hover);color:var(--ink)}
+.proc-step-name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+/* 转录步骤块 */
+.ts-step{border:1px solid var(--line-soft);border-radius:var(--r-4);background:var(--bg-surface);
+  overflow:hidden;transition:border-color var(--dur-fast)}
+.ts-step.is-running{border-color:var(--st-running)}
+.ts-step.is-failed{border-color:var(--st-failed)}
+.ts-head{display:flex;align-items:center;gap:var(--sp-2);padding:var(--sp-2) var(--sp-3);
+  cursor:pointer;background:var(--bg-sunken)}
+.ts-ico{display:inline-flex;color:var(--ink-3)}
+.ts-step.is-done .ts-ico{color:var(--st-done)}
+.ts-step.is-failed .ts-ico{color:var(--st-failed)}
+.ts-step.is-running .ts-ico{color:var(--st-running)}
+.ts-name{font-size:var(--fs-sub);font-weight:600;color:var(--ink);flex:1;min-width:0;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ts-meta{display:flex;align-items:center;gap:var(--sp-2);flex-shrink:0}
+.ts-meta code{font-family:var(--font-mono);font-size:var(--fs-micro);color:var(--ink-4)}
+.ts-body{padding:var(--sp-3)}
+.run-delta{font-family:var(--font-mono);font-size:var(--fs-meta);color:var(--ink-2);
+  line-height:1.6;white-space:pre-wrap;word-break:break-word}
+
+/* 工作区文件项 */
+.ws-file-item{display:flex;align-items:center;gap:var(--sp-2);padding:6px var(--sp-2);
+  border-radius:var(--r-2);cursor:pointer;font-size:var(--fs-meta);color:var(--ink-2)}
+.ws-file-item:hover{background:var(--bg-hover);color:var(--ink)}
+.ws-file-ic{display:inline-flex;color:var(--ink-4);flex-shrink:0}
+.ws-file-name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  font-family:var(--font-mono);font-size:var(--fs-micro)}
+.ws-file-bytes{font-family:var(--font-mono);font-size:var(--fs-micro);color:var(--ink-4);flex-shrink:0}
+
+/* ---------------- 模块 6：设置中心（Codex 式两栏） ---------------- */
+#app[data-shell="settings"] > .sidebar,
+#app[data-shell="settings"] > .titlebar .tlb-acts{display:none !important}
+.st-shell{display:flex;flex:1;min-width:0;min-height:0;overflow:hidden;background:var(--bg-page)}
+.st-side{width:248px;flex-shrink:0;background:var(--bg-shell);border-right:1px solid var(--line-soft);
+  display:flex;flex-direction:column;padding:var(--sp-3) var(--sp-2);gap:2px}
+.st-side-head{display:flex;align-items:center;gap:var(--sp-2);padding:var(--sp-2) var(--sp-3);
+  margin-bottom:var(--sp-2)}
+.st-back-btn{display:inline-flex;align-items:center;gap:var(--sp-2);padding:6px 10px;
+  border-radius:var(--r-2);border:none;background:transparent;color:var(--ink-2);
+  font-size:var(--fs-sub);cursor:pointer}
+.st-back-btn:hover{background:var(--bg-active);color:var(--ink)}
+.st-nav-item{display:flex;align-items:center;gap:var(--sp-3);height:34px;padding:0 var(--sp-3);
+  border-radius:var(--r-2);border:none;background:transparent;color:var(--ink-2);
+  font-size:var(--fs-body);text-align:left;cursor:pointer;
+  transition:background var(--dur-fast),color var(--dur-fast)}
+.st-nav-item:hover{background:var(--bg-hover);color:var(--ink)}
+.st-nav-item.active{background:var(--bg-active);color:var(--ink);font-weight:600}
+.st-nav-item .ic{width:16px;height:16px;color:var(--ink-3)}
+.st-nav-item.active .ic{color:var(--btn-ink)}
+.st-main{flex:1;min-width:0;overflow-y:auto;padding:var(--sp-8) var(--sp-6)}
+.st-container{max-width:760px;margin:0 auto;display:flex;flex-direction:column;gap:var(--sp-6)}
+.st-header{display:flex;flex-direction:column;gap:var(--sp-1)}
+.st-title{font-size:var(--fs-h2);font-weight:600;color:var(--ink);margin:0}
+.st-desc{font-size:var(--fs-meta);color:var(--ink-3);margin:0}
+.st-panel{background:var(--bg-surface);border:1px solid var(--line);border-radius:var(--r-4);overflow:hidden}
+.st-row{display:flex;align-items:center;justify-content:space-between;gap:var(--sp-4);
+  padding:var(--sp-3) var(--sp-4);border-bottom:1px solid var(--line-soft)}
+.st-row:last-child{border-bottom:none}
+.st-row-info{display:flex;flex-direction:column;gap:2px;min-width:0}
+.st-row-t{font-size:var(--fs-body);font-weight:500;color:var(--ink)}
+.st-row-d{font-size:var(--fs-meta);color:var(--ink-3);line-height:1.4}
+.st-ctl{display:flex;align-items:center;gap:var(--sp-2);flex-shrink:0}
+.st-seg{display:inline-flex;padding:2px;background:var(--bg-sunken);border-radius:var(--r-2);gap:2px}
+.st-seg-btn{padding:4px 10px;border-radius:var(--r-1);border:none;background:transparent;
+  color:var(--ink-3);font-size:var(--fs-meta);cursor:pointer;
+  transition:background var(--dur-fast),color var(--dur-fast)}
+.st-seg-btn.active{background:var(--bg-surface);color:var(--ink);font-weight:500;box-shadow:var(--shadow-sm)}
+.st-tiles{display:grid;grid-template-columns:repeat(3,1fr);gap:var(--sp-3);width:100%}
+.st-tile{display:flex;flex-direction:column;align-items:center;gap:var(--sp-2);padding:var(--sp-3);
+  border-radius:var(--r-3);border:1px solid var(--line);background:var(--bg-sunken);cursor:pointer;
+  transition:border-color var(--dur-fast),background var(--dur-fast)}
+.st-tile:hover{border-color:var(--line-strong)}
+.st-tile.active{border-color:var(--btn-ink);background:var(--bg-surface)}
+.st-tile-preview{width:100%;height:48px;border-radius:var(--r-2);border:1px solid var(--line-soft)}
+.st-tile-preview.pv-dark{background:var(--sw-dark-bg)}
+.st-tile-preview.pv-light{background:var(--sw-lite-bg)}
+.st-tile-preview.pv-auto{background:linear-gradient(135deg,var(--sw-lite-bg) 50%,var(--sw-dark-bg) 50%)}
+
+/* ---------------- 模块 7：反馈层（toast / 检查点横幅） ---------------- */
+.toast{position:fixed;left:50%;bottom:24px;transform:translate(-50%,12px);z-index:var(--z-toast);
+  padding:8px 16px;border-radius:var(--r-5);background:var(--btn-ink);color:var(--ink-inv);
+  font-size:var(--fs-sub);box-shadow:var(--shadow-pop);opacity:0;pointer-events:none;
+  transition:transform var(--dur-base) var(--ease),opacity var(--dur-base) var(--ease)}
+.toast.show{opacity:1;transform:translate(-50%,0);pointer-events:auto}
+.toast.ok{background:var(--st-done);color:var(--on-solid)}
+.toast.err{background:var(--st-failed);color:var(--on-solid)}
+.toast-body{display:flex;align-items:center;gap:var(--sp-2)}
+.toast-ic{display:inline-flex}
+.toast-msg{white-space:nowrap}
+.toast-act-btn{margin-left:var(--sp-2);border:none;background:rgba(255,255,255,.2);color:inherit;
+  font-size:var(--fs-micro);font-weight:600;padding:2px 6px;border-radius:var(--r-1);cursor:pointer}
+
+.checkpoint-banner{display:flex;align-items:flex-start;gap:var(--sp-4);padding:var(--sp-4);
+  background:var(--st-waiting-bg);border:1px solid var(--st-waiting);border-radius:var(--r-4);
+  margin:var(--sp-4) var(--sp-6) 0;animation:slideFadeIn var(--dur-base) var(--ease)}
+.cp-banner-icon{color:var(--st-waiting);flex-shrink:0;margin-top:2px}
+.cp-banner-main{flex:1;display:flex;flex-direction:column;gap:var(--sp-1)}
+.cp-banner-title{font-size:var(--fs-body);font-weight:600;color:var(--ink)}
+.cp-banner-desc{font-size:var(--fs-meta);color:var(--ink-2);line-height:1.5}
+.cp-banner-desc code{background:var(--bg-sunken);padding:1px 4px;border-radius:var(--r-1);
+  font-family:var(--font-mono)}
+.cp-banner-acts{flex-shrink:0}
+
+/* ---------------- 模块 12：统一下拉选择器（ffSelect） ---------------- */
+.ff-selw{position:relative;display:inline-flex}
+.ff-sel{display:inline-flex;align-items:center;gap:var(--sp-2);height:30px;padding:0 var(--sp-3);
+  border-radius:var(--r-2);border:1px solid var(--line);background:var(--bg-surface);
+  color:var(--ink);font-size:var(--fs-meta);cursor:pointer;max-width:280px;
+  transition:border-color var(--dur-fast)}
+.ff-sel:hover{border-color:var(--line-strong)}
+.ff-sic{display:inline-flex;color:var(--ink-3)}
+.ff-sic .ic{width:14px;height:14px}
+.ff-sv{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ff-sc{display:inline-flex;color:var(--ink-4);margin-left:auto}
+.ff-sc .ic{width:14px;height:14px}
+.ff-menu{position:fixed;z-index:var(--z-menu);min-width:200px;max-height:320px;overflow-y:auto;
+  padding:var(--sp-1);background:var(--bg-float);border:1px solid var(--line);
+  border-radius:var(--r-3);box-shadow:var(--shadow-pop)}
+.ff-mi{display:flex;align-items:center;justify-content:space-between;gap:var(--sp-3);width:100%;
+  padding:6px var(--sp-2);border:none;background:transparent;color:var(--ink-2);
+  font-size:var(--fs-meta);text-align:left;cursor:pointer;border-radius:var(--r-2)}
+.ff-mi:hover{background:var(--bg-hover);color:var(--ink)}
+.ff-mi.on{background:var(--bg-active);color:var(--ink);font-weight:500}
+.ff-ml{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ff-mi i{font-style:normal;font-size:var(--fs-micro);color:var(--ink-4);flex-shrink:0}
+
+/* ---------------- 运行记录列表 ---------------- */
+.runs-list-layout{max-width:var(--content-w);margin:0 auto;padding:var(--sp-6);display:flex;
+  flex-direction:column;gap:var(--sp-5)}
+.runs-list-header{display:flex;align-items:center;justify-content:space-between;gap:var(--sp-4)}
+.rl-head-title{display:flex;flex-direction:column;gap:var(--sp-1)}
+.rl-head-title h2{font-size:var(--fs-h2);font-weight:600;color:var(--ink);margin:0}
+.rl-head-actions{display:flex;align-items:center;gap:var(--sp-2)}
+.runs-table-card{background:var(--bg-surface);border:1px solid var(--line);border-radius:var(--r-4);
+  overflow:hidden}
+.rl-table{width:100%;border-collapse:collapse}
+.rl-table thead th{font-size:var(--fs-micro);font-weight:600;color:var(--ink-4);text-align:left;
+  padding:var(--sp-3) var(--sp-4);border-bottom:1px solid var(--line);background:var(--bg-sunken);
+  text-transform:uppercase;letter-spacing:.04em}
+.rl-row{cursor:pointer;transition:background var(--dur-fast)}
+.rl-row:hover{background:var(--bg-hover)}
+.rl-row td{padding:var(--sp-3) var(--sp-4);border-bottom:1px solid var(--line-soft);vertical-align:middle}
+.rl-status-badge{display:inline-flex;align-items:center;gap:6px;padding:2px 8px;border-radius:var(--r-1);
+  font-size:var(--fs-micro);color:var(--ink-2)}
+.rl-cell-main{display:flex;flex-direction:column;gap:2px;min-width:0}
+.rl-label{font-size:var(--fs-sub);font-weight:600;color:var(--ink)}
+.rl-brief{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:420px}
+.rl-progress-box{display:flex;flex-direction:column;gap:var(--sp-1)}
+.rl-progress-box .mono{font-family:var(--font-mono);font-size:var(--fs-micro);color:var(--ink-3)}
+.rl-progress-bar{height:4px;border-radius:var(--r-pill);background:var(--bg-sunken);overflow:hidden}
+.rl-progress-bar i{display:block;height:100%;background:var(--st-done);border-radius:var(--r-pill)}
+
+/* ---------------- 通用小件 ---------------- */
+.muted-sm{font-size:var(--fs-meta);color:var(--ink-3)}
+.empty-state{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:var(--sp-3);
+  padding:var(--sp-8);color:var(--ink-3);text-align:center}
+.empty-state .ic{width:32px;height:32px;color:var(--ink-4)}
+.empty-state.err{color:var(--st-failed)}
+.pane-loading{margin:auto}
+
+/* ---------------- 模块 2：首页流水线模板列表 ---------------- */
+.home-pipelines-sect{display:flex;flex-direction:column;gap:var(--sp-3)}
+.sect-head{display:flex;align-items:center;justify-content:space-between;gap:var(--sp-3)}
+.sect-title{font-size:var(--fs-sub);font-weight:600;color:var(--ink-2);letter-spacing:.02em}
+.pl-row-facts{display:flex;align-items:center;gap:var(--sp-3);flex-wrap:wrap}
+.pl-fact{font-size:var(--fs-micro);color:var(--ink-3);display:inline-flex;align-items:center;gap:4px}
+.pl-fact .ic{width:12px;height:12px;color:var(--ink-4)}
+.pl-fact code{font-family:var(--font-mono);color:var(--ink-2)}
+.pl-mini-track{display:inline-flex;align-items:center;gap:2px}
+.pl-mini-track i{width:6px;height:6px;border-radius:var(--r-pill);background:var(--st-pending)}
+.pl-mini-track i.cp{background:var(--st-waiting)}
+.pl-mini-track i.done{background:var(--st-done)}
+.sk-bytes-badge.over{color:var(--st-failed);background:var(--st-failed-bg)}
+
+/* ---------------- 模块 12：通用小件（renderBadge 输出） ---------------- */
+.ff-badge{display:inline-flex;align-items:center;gap:4px;padding:1px 7px;border-radius:var(--r-1);
+  font-size:var(--fs-micro);font-weight:500;background:var(--bg-sunken);color:var(--ink-2)}
+.ff-badge-pending{background:var(--st-pending-bg);color:var(--st-pending)}
+.ff-badge-running{background:var(--st-running-bg);color:var(--st-running)}
+.ff-badge-waiting{background:var(--st-waiting-bg);color:var(--st-waiting)}
+.ff-badge-done{background:var(--st-done-bg);color:var(--st-done)}
+.ff-badge-failed{background:var(--st-failed-bg);color:var(--st-failed)}
+.ff-badge-cancelled{background:var(--st-cancelled-bg);color:var(--st-cancelled)}
+.ff-badge-revising{background:var(--st-revising-bg);color:var(--st-revising)}
+.mono{font-family:var(--font-mono)}
+.btn-accent{background:var(--btn-ink);color:var(--ink-inv)}
+.ic-danger{color:var(--st-failed)}
+.btn-danger{color:var(--st-failed)}
+.pv-modal-inner{display:flex;flex-direction:column;gap:var(--sp-4)}
+.pv-section h4{margin:0 0 var(--sp-2);font-size:var(--fs-sub);color:var(--ink-2)}
+.pv-code{margin:0;background:var(--bg-sunken);border-radius:var(--r-3);padding:var(--sp-3);
+  font-family:var(--font-mono);font-size:var(--fs-micro);color:var(--ink-2);overflow:auto;
+  max-height:320px;white-space:pre-wrap;word-break:break-word}
+.pv-form{display:flex;flex-direction:column;gap:var(--sp-3)}
+.pv-f{display:flex;flex-direction:column;gap:var(--sp-1)}
+.pv-label{font-size:var(--fs-micro);color:var(--ink-3)}
+.pv-label .req{color:var(--st-failed)}
+.pv-input{height:32px;padding:0 var(--sp-3);border-radius:var(--r-2);border:1px solid var(--line);
+  background:var(--bg-surface);color:var(--ink);font-size:var(--fs-meta);box-sizing:border-box;width:100%}
+.pv-input:focus{outline:none;border-color:var(--line-strong)}
+.pv-file-box{max-height:60vh;overflow:auto}
+.ws-md{font-size:var(--fs-sub);color:var(--ink-2);line-height:1.7}
+.ws-md h3,.ws-md h4,.ws-md h5{margin:var(--sp-4) 0 var(--sp-2);color:var(--ink);font-weight:600}
+.ws-md pre{background:var(--bg-sunken);border-radius:var(--r-3);padding:var(--sp-3);overflow:auto}
+.ws-md code{font-family:var(--font-mono);font-size:var(--fs-micro)}
+.ws-md table{border-collapse:collapse;width:100%}
+.ws-md th,.ws-md td{border:1px solid var(--line-soft);padding:6px var(--sp-2);font-size:var(--fs-meta)}
+.up-mask{position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:var(--z-mask)}
+.up-card{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:var(--z-modal);
+  width:min(420px,92vw);background:var(--bg-float);border:1px solid var(--line);
+  border-radius:var(--r-5);box-shadow:var(--shadow-pop);padding:var(--sp-5)}
+.up-card[hidden],.up-mask[hidden]{display:none !important}
+.up-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:var(--sp-3)}
+.up-head b{font-size:var(--fs-lead);color:var(--ink)}
+.up-ver{font-size:var(--fs-meta);color:var(--ink-3);margin-bottom:var(--sp-4)}
+.up-bar{height:6px;border-radius:var(--r-pill);background:var(--bg-sunken);overflow:hidden}
+.up-fill{height:100%;background:var(--st-running);border-radius:var(--r-pill);
+  transition:width var(--dur-base) var(--ease)}
+.up-mb{font-family:var(--font-mono);font-size:var(--fs-micro);color:var(--ink-3);
+  margin-top:var(--sp-2);text-align:right}
+.up-btns{display:flex;justify-content:flex-end;gap:var(--sp-2);margin-top:var(--sp-4)}
+.up-err{color:var(--st-failed);font-size:var(--fs-meta);padding:var(--sp-4)}
+
+/* ---------------- 响应式：窄屏折叠双栏 ---------------- */
+@media (max-width: 1200px){
+  .run-side-pane{width:264px}
+}
+@media (max-width: 980px){
+  .run-console-frame{flex-direction:column}
+  .run-side-pane{width:auto;border-left:none;border-top:1px solid var(--line-soft);max-height:42vh}
+  .skills-layout{flex-direction:column}
+  .skills-sidebar{width:auto;border-right:none;border-bottom:1px solid var(--line-soft);max-height:34vh}
+  .step-grid,.adv-grid{grid-template-columns:1fr}
+  .st-side{width:200px}
 }

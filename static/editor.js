@@ -134,28 +134,90 @@ const pvh = (txt, id) => `<div class="pv-foot-hint"${id?` id="${esc(id)}"`:''}>$
 /* =====================================================================
  * 技能库
  * ===================================================================== */
-window.renderSkills = async function(){
+let SK_LIST_ACTIVE = '';
+
+function skNavListHtml(skills, activeName){
+  if(!skills.length) return `<div class="empty-state"><p>${esc(t('sk.empty'))}</p></div>`;
+  return skills.map(s=>{
+    const kb = Math.round((s.chars||0)/1024);
+    return `<button class="sk-nav-item${s.name===activeName?' active':''}" type="button" onclick="skPick('${jsq(s.name)}')">
+      <div class="sk-nav-title"><b>${esc(s.name)}</b><span class="sk-bytes-badge${kb>400?' warn':''}">${kb} KB</span></div>
+      <div class="sk-nav-desc">${esc(s.desc||t('sk.noDesc'))}</div></button>`;
+  }).join('');
+}
+window.skFilterList = function(q){
+  q = (q||'').toLowerCase().trim();
+  const list = PL_SKILLS.filter(s=>s.name.toLowerCase().includes(q)||(s.desc||'').toLowerCase().includes(q));
+  const box = document.getElementById('skNavList'); if(box) box.innerHTML = skNavListHtml(list, SK_LIST_ACTIVE);
+};
+window.skPick = async function(name){
+  if(skDirty() && !confirm(t('ed.unsavedGuard'))) return;
+  SK_LIST_ACTIVE = name;
+  document.querySelectorAll('.sk-nav-item').forEach(el=>{
+    const b = el.querySelector('b'); el.classList.toggle('active', !!b && b.textContent===name);
+  });
+  await skOpenPane(name);
+};
+async function skOpenPane(name){
+  const pane = document.getElementById('skPane'); if(!pane) return;
+  pane.innerHTML = `<div class="muted-sm pane-loading">${esc(t('run.wsLoading'))}</div>`;
+  const d = await _api('/api/skills/'+encodeURIComponent(name)).catch(e=>({detail:e.message}));
+  if(d.detail){ pane.innerHTML = `<div class="empty-state err"><p>${esc(d.detail)}</p></div>`; return; }
+  SK_EDIT = {name:d.name, content:d.content, isNew:false};
+  SK_BASE = skSnap({n:SK_EDIT.name, c:SK_EDIT.content, nw:false});
+  const bytes = new TextEncoder().encode(d.content||'').length;
+  const over = bytes > 512*1024;
+  pane.innerHTML = `
+    <div class="sk-editor-wrap">
+      <header class="sk-pane-header">
+        <div class="sk-pane-title">
+          <span class="sk-tag-pill">${esc(t('sk.title'))}</span>
+          <h3>${esc(d.name)}</h3>
+          <code class="sk-path-hint">modex-data/skills/${esc(d.name)}/SKILL.md</code>
+        </div>
+        <div class="sk-pane-actions">
+          <button class="btn btn-ghost btn-sm" onclick="skView('${jsq(d.name)}')">${ico('eye')} ${esc(t('c.view'))}</button>
+          <button class="btn btn-ghost btn-sm" onclick="skDuplicate('${jsq(d.name)}')">${ico('flow')} ${esc(t('sk.dupe'))}</button>
+          <button class="btn btn-ghost btn-sm btn-danger" onclick="skDelete('${jsq(d.name)}')">${ico('trash')} ${esc(t('c.delete'))}</button>
+          <button class="btn btn-primary btn-sm" id="skSaveBtn" onclick="skSave()" ${over?'disabled':''}>${ico('checkCircle')} ${esc(t('c.save'))}</button>
+        </div>
+      </header>
+      <div class="sk-editor-body">
+        <div class="sk-meta-bar">
+          <span class="sk-counter-label${over?' over-limit':''}" id="skCount">${(bytes/1024).toFixed(1)} / 512.0 KB</span>
+          <span class="sk-tip-text">${esc(t('sk.lines',{n:(d.content||'').split('\n').length}))}</span>
+        </div>
+        <textarea class="sk-textarea mono" id="skContent" spellcheck="false"
+          oninput="skSync()">${esc(d.content)}</textarea>
+      </div>
+    </div>`;
+}
+window.skOpenPane = skOpenPane;
+
+window.renderSkills = async function(activeName){
   window.viewLoading();
   await plLoad();
-  const row = s => `
-    <article class="pl-card-row">
-      <button type="button" class="pl-row-main" onclick="skView('${jsq(s.name)}')">
-        <div class="pl-row-title"><span class="pl-row-name">${esc(s.name)}</span>
-          <span class="muted-sm">${s.chars>0?(s.chars/1000).toFixed(1)+'k':esc(t('sk.empty2'))}</span></div>
-        ${s.desc?`<div class="pl-steps-mini"><span class="pl-step-chip pl-chip-wide">${esc(s.desc)}</span></div>`:''}
-      </button>
-      <div class="pl-row-ops" onclick="event.stopPropagation()">
-        <button class="pf-op" onclick="skView('${jsq(s.name)}')">${esc(t('c.view'))}</button>
-        <button class="pf-op" onclick="nav.go('skill-edit/${jsq(s.name)}')">${esc(t('c.edit'))}</button>
-      </div>
-    </article>`;
+  if(activeName) SK_LIST_ACTIVE = activeName;
+  if(!SK_LIST_ACTIVE || !PL_SKILLS.some(s=>s.name===SK_LIST_ACTIVE))
+    SK_LIST_ACTIVE = (PL_SKILLS[0] && PL_SKILLS[0].name) || '';
   window.__chrome = {title:t('sk.title'), icon:'skill',
     actions:`<button class="btn btn-ghost btn-sm" onclick="skImportModal()">${esc(t('c.import'))}</button>
       <button class="btn btn-primary btn-sm" onclick="nav.go('skill-edit/new')"><span class="btn-plus">＋</span> ${esc(t('sk.new'))}</button>`};
   $('#view').innerHTML = `
     <input class="pl-file" type="file" id="skImportFile" accept=".zip,.md" onchange="skImportDo(this)">
-    <div class="pl-list">${PL_SKILLS.length?PL_SKILLS.map(row).join('')
-      :`<div class="pf-empty">${esc(t('sk.empty'))}</div>`}</div>`;
+    <div class="skills-layout view-enter">
+      <aside class="skills-sidebar" role="navigation" aria-label="${esc(t('sk.title'))}">
+        <div class="skills-act-bar">
+          <input class="st-input" id="skSearchIpt" placeholder="${esc(t('sk.searchPh'))}" oninput="skFilterList(this.value)">
+          <button class="btn btn-primary btn-sm" onclick="nav.go('skill-edit/new')" aria-label="${esc(t('sk.new'))}">${ico('plus')}</button>
+        </div>
+        <div class="skills-nav-list" id="skNavList">${skNavListHtml(PL_SKILLS, SK_LIST_ACTIVE)}</div>
+      </aside>
+      <main class="skills-editor-pane" id="skPane">
+        <div class="empty-state">${ico('skill')}<p>${esc(t('sk.emptySelect'))}</p></div>
+      </main>
+    </div>`;
+  if(SK_LIST_ACTIVE) await skOpenPane(SK_LIST_ACTIVE);
 };
 
 window.skImportModal = function(){ const el=document.getElementById('skImportFile'); if(el) el.click(); };
@@ -178,21 +240,20 @@ window.skView = async function(name){
   const d = await _api('/api/skills/'+encodeURIComponent(name)).catch(e=>({detail:e.message}));
   if(d.detail){ toast(d.detail); return; }
   _lockScroll(true);
+  const old = document.getElementById('skViewRoot'); if(old) old.remove();
   const root = document.createElement('div');
   root.id = 'skViewRoot';
-  root.innerHTML = `<div class="modal open" onclick="if(event.target===this)skCloseModal()">
-    <div class="modal-box sk-view-modal">
-      <div class="modal-top"><div class="pv-head"><h3>${esc(d.name)}</h3></div>
-        <button class="modal-x" onclick="skCloseModal()">×</button></div>
-      <div class="sk-view-body"><pre class="sk-pre">${esc(d.content)}</pre></div>
-      <div class="sk-view-foot">
-        <button class="btn btn-ghost btn-sm" onclick="skCloseModal()">${esc(t('c.close'))}</button>
-        <button class="btn btn-ghost btn-sm" onclick="skDuplicate('${esc(d.name)}')">${esc(t('sk.dupe'))}</button>
-        <button class="btn btn-ghost btn-sm pl-danger" onclick="skDelete('${esc(d.name)}')">${esc(t('c.delete'))}</button>
-        <button class="btn btn-primary btn-sm" onclick="skCloseModal();nav.go('skill-edit/${jsq(d.name)}')">${esc(t('c.edit'))}</button>
-      </div>
-    </div></div>`;
+  root.innerHTML = renderModalFrame('skViewModal', d.name,
+    `<pre class="sk-pre">${esc(d.content)}</pre>`,
+    `<button class="btn btn-ghost btn-sm" onclick="skCloseModal()">${esc(t('c.close'))}</button>
+     <button class="btn btn-ghost btn-sm" onclick="skDuplicate('${esc(d.name)}')">${esc(t('sk.dupe'))}</button>
+     <button class="btn btn-ghost btn-sm pl-danger" onclick="skDelete('${esc(d.name)}')">${esc(t('c.delete'))}</button>
+     <button class="btn btn-primary btn-sm" onclick="skCloseModal();nav.go('skill-edit/${jsq(d.name)}')">${esc(t('c.edit'))}</button>`);
   document.body.appendChild(root);
+  const box = root.querySelector('.modal-box');
+  if(box) box.classList.add('sk-view-modal');
+  openModal('skViewModal');
+  root.firstElementChild.addEventListener('click', (e)=>{ if(e.target===root.firstElementChild) skCloseModal(); });
 };
 window.skCloseModal = function(){ const r=document.getElementById('skViewRoot'); if(r) r.remove(); _lockScroll(false); };
 window.skDuplicate = async function(name){
@@ -254,8 +315,18 @@ function skDrawEditor(){
 window.skSync = function(){
   const el = document.getElementById('skContent');
   const c = document.getElementById('skCount');
-  if(el && c) c.textContent = t('sk.lines',{n: el.value?el.value.split('\n').length:0});
   if(el) SK_EDIT.content = el.value;
+  if(!el || !c) return;
+  if(c.classList.contains('sk-counter-label')){
+    /* 两栏编辑器：显示字节数并执行 512KB 硬顶守卫 */
+    const bytes = new TextEncoder().encode(el.value).length;
+    const over = bytes > 512*1024;
+    c.textContent = (bytes/1024).toFixed(1)+' / 512.0 KB';
+    c.classList.toggle('over-limit', over);
+    const btn = document.getElementById('skSaveBtn'); if(btn) btn.disabled = over;
+  }else{
+    c.textContent = t('sk.lines',{n: el.value?el.value.split('\n').length:0});
+  }
 };
 window.skBack = function(){ nav.go('skills'); };
 window.skSave = async function(){
@@ -272,7 +343,10 @@ window.skSave = async function(){
     const r = await _put('/api/skills/'+encodeURIComponent(E.name), {name:E.name, content})
       .catch(e=>({detail:e.message}));
     if(r.detail){ toast(r.detail); return; }
-    toast(t('sk.saved'), true); window.markSavedClean('sk'); nav.go('skills');
+    toast(t('sk.saved'), true); window.markSavedClean('sk');
+    /* 两栏编辑器里就地刷新，不跳走 —— 跳走会丢掉当前选中的技能 */
+    if(document.getElementById('skPane')){ await plLoad(); await skOpenPane(E.name); }
+    else nav.go('skills');
   }
 };
 
@@ -422,95 +496,117 @@ function plDrawEditor(){
     const main = skillInfo(s.skill);
     const keyDup = E.steps.filter(x=>(x.key||'').trim()===s.key.trim()).length > 1;
     const keyBad = !/^[a-z0-9][a-z0-9_-]*$/.test((s.key||'').trim());
+    const isFirst = (i === 0), isLast = (i === E.steps.length - 1);
+    const role = s.role || 'executor';
+    const roleLabel = (ROLES_.find(r=>r.v===role) || ROLES_[0]).label;
+    const advOn = !!(s.model || s.engine || (s.extra_skills||[]).length || s.extra_prompt);
     return `
     <div class="step-card" data-i="${i}">
-      <div class="step-rail">
-        <div class="step-no">${i+1}</div>
-        ${i<E.steps.length-1?'<div class="step-line"></div>':''}
+      <div class="step-rail-left">
+        <span class="step-badge">${i+1}</span>
+        ${isLast ? '' : '<div class="step-connector"></div>'}
       </div>
-      <div class="step-body">
-        <div class="pv-form">
-          <div class="pv-row2">
-            ${pvf(`${esc(t('ed.stepName'))} <b class="req">*</b>`,
-              `<input class="pv-input" value="${esc(s.label)}" oninput="plSet(${i},'label',this.value)">`)}
-            ${pvf(`${esc(t('ed.stepKey'))} <b class="req">*</b>`,
-              `<input class="pv-input mono ${keyDup||keyBad?'fld-err':''}" value="${esc(s.key)}"
-                oninput="plSet(${i},'key',this.value)">`,
-              keyDup?`<div class="fld-err-t">${esc(t('ed.keyDup'))}</div>`
-                    :keyBad?`<div class="fld-err-t">${esc(t('ed.keyHint'))}</div>`:'')}
+      <div class="step-content">
+        <div class="step-header">
+          <div class="step-ident">
+            <input class="step-ipt-label" value="${esc(s.label)}" placeholder="${esc(t('ed.stepName'))}"
+              aria-label="${esc(t('ed.stepName'))}" oninput="plSet(${i},'label',this.value)">
+            <input class="step-ipt-key mono ${keyDup||keyBad?'fld-err':''}" value="${esc(s.key)}"
+              aria-label="${esc(t('ed.stepKey'))}" oninput="plSet(${i},'key',this.value)">
           </div>
-          <div class="pv-row2">
-            ${pvf(`${esc(t('ed.mainSkill'))} <b class="req">*</b>
-              <a class="fld-link" onclick="nav.go('skills')">${esc(t('ed.viewSkills'))}</a>`,
-              (()=>{ let os=[{v:'',label:'—'}]
-                    .concat(plSkillOptions(''), plSkillOptions('claude'), plSkillOptions('codex'));
-                  const cur = plSkillValue(s.skill_src||'', s.skill||'');
-                  if(s.skill && !os.some(o=>o.v===cur)) os.push({v:cur, label:s.skill+'（'+t('sk.deleted')+'）'});
-                  return ffSelect(os, cur, {mono:true, onChange:(v)=>{
-                    const sp = plSplitSkill(v);
-                    plSet(i,'skill',sp.name); PL_EDIT.steps[i].skill_src = sp.src; plDrawEditor(); }}); })(),
-              (s.skill_src ? `<div class="pv-foot-hint">${esc(t('ed.extHint'))}</div>`
-                           : main ? `<div class="pv-foot-hint">${esc(main.desc)}</div>`
-                           : s.skill ? `<div class="pv-foot-hint">${esc(t('ed.lostSkill'))}</div>` : ''))}
-            ${pvf(esc(t('ed.out')),
-              `<input class="pv-input mono" value="${esc(s.out||'')}" placeholder="${esc(t('ed.outPh'))}"
-                oninput="plSet(${i},'out',this.value)">`,
-              pvh(t('ed.outHint')))}
-          </div>
-          ${pvf(esc(t('ed.role')),
-            ffSelect(ROLES_.map(r=>({v:r.v, label:r.label})), s.role||'executor',
-              {cls:'ff-pill', onChange:(v)=>plRole(i,v)}),
-            pvh((ROLES_.find(r=>r.v===(s.role||'executor'))||ROLES_[0]).hint, 'roleHint-'+i))}
-          <div class="step-adv">
-            <button type="button" class="step-adv-toggle" onclick="this.parentElement.classList.toggle('open')">
-              <span class="adv-arrow">▸</span> ${esc(t('ed.advanced'))}
-              <span class="adv-dot" id="advDot-${i}"
-                style="${(s.model||s.engine||(s.extra_skills||[]).length||s.extra_prompt)?'':'display:none'}"></span>
+          <div class="step-roles">
+            <button class="step-role-btn ${role!=='executor'?'is-rev':''}" type="button"
+              title="${esc((ROLES_.find(r=>r.v===role)||ROLES_[0]).hint)}"
+              aria-label="${esc(t('ed.role'))}: ${esc(roleLabel)}"
+              onclick="plRoleCycle(${i})">
+              ${ico(role==='reviewer'?'checkCircle':(role==='editor'?'skill':'agent'))} <span>${esc(roleLabel)}</span>
             </button>
-            <div class="step-adv-body">
-              <div class="pv-row2">
-                ${pvf(esc(t('ed.engine')),
-                  ffSelect([['', t('ed.engineDefault')],['claude',t('eng.claude')],['codex',t('eng.codex')]]
-                    .map(([v,label])=>({v,label})), s.engine||'',
-                    {cls:'ff-pill', onChange:(v)=>plEng(i,v)}),
-                  pvh(readyEngines ? t('ed.engineHint')+' · '+t('ed.engineReady',{list:readyEngines}) : t('ed.engineNone')))}
-                ${pvf(esc(t('ed.model')),
-                  (()=>{ const om=[{v:'',label:t('ed.modelFollow')}].concat(
-                      presetNames.map(n=>({v:n, label:t('ed.modelPreset',{name:n})})));
-                    if(s.model && !presetNames.includes(s.model)) om.push({v:s.model, label:t('ed.modelRaw',{model:s.model})});
-                    return ffSelect(om, s.model||'', {onChange:(v)=>{ plSet(i,'model',v); plDrawEditor(); }}); })(),
-                  pvh(t('ed.modelHint')))}
-              </div>
-              ${pvf(esc(t('ed.extraSkills')),
-                `<div class="extra-chips">
-                  ${(s.extra_skills||[]).map((n,xi)=>`<span class="x-chip">${esc(n)}<b onclick="plExtraDel(${i},${xi})">×</b></span>`).join('')||`<span class="muted-sm">${esc(t('c.none'))}</span>`}
-                  ${(s.skill_src?`<div class="pv-foot-hint">${esc(t('ed.src.'+s.skill_src))} · ${esc(t('ed.extHint'))}</div>`:'')}
-                  ${(()=>{ const add=plSkillOptions(s.skill_src||'')
-                        .filter(o=>plSplitSkill(o.v).name!==s.skill && !(s.extra_skills||[]).includes(plSplitSkill(o.v).name));
-                      return add.length ? ffSelect(add, '', {action:true, cls:'ff-ghost',
-                        placeholder:t('ed.addSkill'), onChange:(v)=>plExtraAdd(i, plSplitSkill(v).name)}) : ''; })()}
-                </div>`)}
-              ${pvf(esc(t('ed.stepExtra')),
-                `<textarea class="pv-input" rows="3" placeholder="${esc(t('ed.stepExtraPh'))}"
-                  oninput="plSet(${i},'extra_prompt',this.value)">${esc(s.extra_prompt||'')}</textarea>`,
-                pvh(t('ed.stepExtraHint')))}
-              <div class="pl-check-row">
-                <div><div class="k">${esc(t('ed.checkpoint'))}</div><div class="cs2">${esc(t('ed.checkpointHint'))}</div></div>
-                <label class="switch"><input type="checkbox" ${s.checkpoint?'checked':''}
-                  onchange="plSet(${i},'checkpoint',this.checked)"><span class="slider"></span></label>
-              </div>
-              <div class="pl-check-row">
-                <div><div class="k">${esc(t('ed.preview'))}</div><div class="cs2">${esc(t('ed.previewSub'))}</div></div>
-                <button type="button" class="btn btn-ghost btn-sm" onclick="plPreview(${i})">${esc(t('ed.preview'))}</button>
-              </div>
-            </div>
+          </div>
+          <div class="step-actions">
+            <button class="ic-btn" onclick="plMove(${i},-1)" ${isFirst?'disabled':''}
+              title="${esc(t('ed.moveUp'))}" aria-label="${esc(t('ed.moveUp'))}">${ico('arrowUp')}</button>
+            <button class="ic-btn" onclick="plMove(${i},1)" ${isLast?'disabled':''}
+              title="${esc(t('ed.moveDown'))}" aria-label="${esc(t('ed.moveDown'))}">${ico('arrowDown')}</button>
+            <button class="ic-btn ic-danger" onclick="plDel(${i})"
+              title="${esc(t('ed.delStep'))}" aria-label="${esc(t('ed.delStep'))}">${ico('trash')}</button>
           </div>
         </div>
-      </div>
-      <div class="step-ops">
-        <button type="button" class="plop" title="${esc(t('ed.moveUp'))}" onclick="plMove(${i},-1)" ${i===0?'disabled':''}>↑</button>
-        <button type="button" class="plop" title="${esc(t('ed.moveDown'))}" onclick="plMove(${i},1)" ${i===E.steps.length-1?'disabled':''}>↓</button>
-        <button type="button" class="plop plop-del" title="${esc(t('ed.delStep'))}" onclick="plDel(${i})">×</button>
+        ${(keyDup||keyBad) ? `<div class="fld-err-t">${esc(keyDup?t('ed.keyDup'):t('ed.keyHint'))}</div>` : ''}
+
+        <div class="step-grid">
+          <div class="st-field">
+            <label class="st-lbl">${esc(t('ed.mainSkill'))} <b class="req">*</b>
+              <a class="fld-link" onclick="nav.go('skills')">${esc(t('ed.viewSkills'))}</a></label>
+            ${(()=>{ let os=[{v:'',label:'—'}]
+                  .concat(plSkillOptions(''), plSkillOptions('claude'), plSkillOptions('codex'));
+                const cur = plSkillValue(s.skill_src||'', s.skill||'');
+                if(s.skill && !os.some(o=>o.v===cur)) os.push({v:cur, label:s.skill+'（'+t('sk.deleted')+'）'});
+                return ffSelect(os, cur, {mono:true, onChange:(v)=>{
+                  const sp = plSplitSkill(v);
+                  plSet(i,'skill',sp.name); PL_EDIT.steps[i].skill_src = sp.src; plDrawEditor(); }}); })()}
+            ${s.skill_src ? `<div class="pv-foot-hint">${esc(t('ed.extHint'))}</div>`
+                          : main ? `<div class="pv-foot-hint">${esc(main.desc)}</div>`
+                          : s.skill ? `<div class="pv-foot-hint">${esc(t('ed.lostSkill'))}</div>` : ''}
+          </div>
+          <div class="st-field">
+            <label class="st-lbl">${esc(t('ed.out'))}</label>
+            <div class="st-input-wrap">${ico('file')}
+              <input value="${esc(s.out||'')}" placeholder="${esc(t('ed.outPh'))}" spellcheck="false"
+                aria-label="${esc(t('ed.out'))}" oninput="plSet(${i},'out',this.value)"></div>
+            <div class="pv-foot-hint">${esc(t('ed.outHint'))}</div>
+          </div>
+        </div>
+
+        <div class="step-footer">
+          <label class="step-cp-toggle" title="${esc(t('ed.checkpointHint'))}">
+            <input type="checkbox" ${s.checkpoint?'checked':''}
+              onchange="plSet(${i},'checkpoint',this.checked)">
+            <span class="cp-indicator"></span>
+            <span>${esc(t('ed.checkpoint'))}</span>
+          </label>
+          <button class="step-adv-btn" type="button" onclick="plToggleAdv(${i})"
+            aria-expanded="${advOn?'true':'false'}">
+            ${ico('setting')} <span>${esc(t('ed.advanced'))}</span>
+            <span class="adv-dot" id="advDot-${i}"${advOn?'':' hidden'}></span>
+          </button>
+        </div>
+
+        <div class="step-adv-panel" id="stepAdv_${i}" hidden>
+          <div class="adv-grid">
+            <div class="st-field">
+              <label class="st-lbl">${esc(t('ed.engine'))}</label>
+              ${ffSelect([['', t('ed.engineDefault')],['claude',t('eng.claude')],['codex',t('eng.codex')]]
+                .map(([v,label])=>({v,label})), s.engine||'',
+                {cls:'ff-pill', onChange:(v)=>plEng(i,v)})}
+              ${pvh(readyEngines ? t('ed.engineHint')+' · '+t('ed.engineReady',{list:readyEngines}) : t('ed.engineNone'))}
+            </div>
+            <div class="st-field">
+              <label class="st-lbl">${esc(t('ed.model'))}</label>
+              ${(()=>{ const om=[{v:'',label:t('ed.modelFollow')}].concat(
+                  presetNames.map(n=>({v:n, label:t('ed.modelPreset',{name:n})})));
+                if(s.model && !presetNames.includes(s.model)) om.push({v:s.model, label:t('ed.modelRaw',{model:s.model})});
+                return ffSelect(om, s.model||'', {onChange:(v)=>{ plSet(i,'model',v); plAdvTouch(i); }}); })()}
+              ${pvh(t('ed.modelHint'))}
+            </div>
+          </div>
+          ${pvf(esc(t('ed.extraSkills')),
+            `<div class="extra-chips">
+              ${(s.extra_skills||[]).map((n,xi)=>`<span class="x-chip">${esc(n)}<b onclick="plExtraDel(${i},${xi})">×</b></span>`).join('')||`<span class="muted-sm">${esc(t('c.none'))}</span>`}
+              ${(s.skill_src?`<div class="pv-foot-hint">${esc(t('ed.src.'+s.skill_src))} · ${esc(t('ed.extHint'))}</div>`:'')}
+              ${(()=>{ const add=plSkillOptions(s.skill_src||'')
+                    .filter(o=>plSplitSkill(o.v).name!==s.skill && !(s.extra_skills||[]).includes(plSplitSkill(o.v).name));
+                  return add.length ? ffSelect(add, '', {action:true, cls:'ff-ghost',
+                    placeholder:t('ed.addSkill'), onChange:(v)=>plExtraAdd(i, plSplitSkill(v).name)}) : ''; })()}
+            </div>`)}
+          ${pvf(esc(t('ed.stepExtra')),
+            `<textarea class="pv-input" rows="3" placeholder="${esc(t('ed.stepExtraPh'))}"
+              oninput="plSet(${i},'extra_prompt',this.value)">${esc(s.extra_prompt||'')}</textarea>`,
+            pvh(t('ed.stepExtraHint')))}
+          <div class="pl-check-row">
+            <div><div class="k">${esc(t('ed.preview'))}</div><div class="cs2">${esc(t('ed.previewSub'))}</div></div>
+            <button type="button" class="btn btn-ghost btn-sm" onclick="plPreview(${i})">${esc(t('ed.preview'))}</button>
+          </div>
+        </div>
       </div>
     </div>`;
   };
@@ -522,6 +618,19 @@ function plDrawEditor(){
       <button class="btn btn-primary btn-sm" onclick="plSave()">${esc(t('ed.save'))}</button>`,
   };
   $('#view').innerHTML = `
+    <div class="ed-header">
+      <div class="ed-title-cluster">
+        <span class="ed-emoji" aria-hidden="true">🧩</span>
+        <span class="ed-name-input">${esc(E.label || E.name || t('ed.newTitle'))}</span>
+        ${isNew?'':`<code class="ed-slug">${esc(E.name)}</code>`}
+        <span class="ed-dirty-dot" id="edDirtyDot" title="${esc(t('ed.dirty'))}"
+          aria-label="${esc(t('ed.dirty'))}"${plDirty()?'':' hidden'}>●</span>
+      </div>
+      <div class="ed-actions">
+        <button class="btn btn-ghost btn-sm" onclick="nav.go('pipelines')">${esc(t('c.cancel'))}</button>
+        <button class="btn btn-primary btn-sm" onclick="plSave()">${esc(t('ed.save'))}</button>
+      </div>
+    </div>
     <div class="card">
       <div class="card-h"><div><div class="ct">${esc(t('ed.basic'))}</div></div></div>
       <div class="pv-form">
@@ -542,22 +651,42 @@ function plDrawEditor(){
       <div class="card-h"><div><div class="ct">${esc(t('ed.stepsTitle'))} <span class="muted">(${E.steps.length})</span></div>
         <div class="cs">${esc(t('ed.stepsSub'))}</div></div>
         <button class="btn btn-accent btn-sm" onclick="plAdd()"><span class="btn-plus">＋</span> ${esc(t('ed.addStep'))}</button></div>
-      <div class="pl-steps-body" id="plSteps">${E.steps.map(stepCard).join('')}</div>
+      <div class="steps-flow-container" id="plSteps">${E.steps.map(stepCard).join('')}</div>
     </div>`;
 }
 
 /* ---------------- 编辑操作 ---------------- */
-window.plEdit = function(k, v){ PL_EDIT[k] = v; };
-window.plSet = function(i, k, v){ PL_EDIT.steps[i][k] = (k==='checkpoint') ? !!v : v; };
+/* 未保存改动的常驻指示点：任何一次就地编辑都要重算，否则点只在整页重渲染时更新。 */
+window.plPaintDirty = function(){
+  const el = document.getElementById('edDirtyDot');
+  if(el) el.hidden = !plDirty();
+};
+window.plEdit = function(k, v){ PL_EDIT[k] = v; window.plPaintDirty(); };
+window.plSet = function(i, k, v){
+  PL_EDIT.steps[i][k] = (k==='checkpoint') ? !!v : v;
+  window.plPaintDirty();
+};
+/* 高级面板：用 [hidden] 折叠，不再靠父级 class —— 折叠态要能被 aria-expanded 读到 */
+window.plToggleAdv = function(i){
+  const el = document.getElementById('stepAdv_'+i);
+  if(!el) return;
+  el.hidden = !el.hidden;
+  const btn = el.previousElementSibling;
+  const t2 = btn && btn.querySelector('.step-adv-btn');
+  if(t2) t2.setAttribute('aria-expanded', el.hidden ? 'false' : 'true');
+};
+/* 角色 chip：单击在 执行者 → 审阅验证 → 编辑 之间轮转，按钮上始终显示当前角色 */
+const ROLE_ORDER = ['executor', 'reviewer', 'editor'];
+window.plRoleCycle = function(i){
+  const cur = (PL_EDIT.steps[i]||{}).role || 'executor';
+  const next = ROLE_ORDER[(ROLE_ORDER.indexOf(cur) + 1) % ROLE_ORDER.length];
+  PL_EDIT.steps[i].role = next;
+  plDrawEditor();
+};
 /* 就地改：整页重渲染会把「高级配置」折叠回去，选一次引擎就得重新展开 */
 window.plAdvTouch = function(i){
   const s = PL_EDIT.steps[i]||{}; const el = document.getElementById('advDot-'+i);
-  if(el) el.style.display = (s.model||s.engine||(s.extra_skills||[]).length||s.extra_prompt)?'':'none';
-};
-window.plRole = function(i, v){
-  plSet(i,'role',v);
-  const r = ROLES().find(x=>x.v===v); const el = document.getElementById('roleHint-'+i);
-  if(r && el) el.textContent = r.hint;
+  if(el) el.hidden = !(s.model||s.engine||(s.extra_skills||[]).length||s.extra_prompt);
 };
 window.plEng = function(i, v){ plSet(i,'engine',v); plAdvTouch(i); };
 window.plExtraAdd = function(i, name){

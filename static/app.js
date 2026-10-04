@@ -844,9 +844,12 @@ function tkStageHtml(tpls, flow){
   /* 选中的预设可能在设置里被删过：那时 chip 会退回「跟随步骤」，
      但 TK_MODEL 还留着死名字 —— 必须一起归零，否则显示的是一套、发出去的是另一套。 */
   if(!PSET.some(o=>o.v===TK_MODEL)) TK_MODEL = '';
-  return `<div class="home-stage">
-    <h1 class="tk-greet">${esc(t('tk.greet'))}</h1>
-    <div class="tk-card">
+  return `<div class="home-stage view-enter">
+    <div class="tk-greet-row">
+      <h1 class="tk-greet">${esc(t('tk.greet'))}</h1>
+      <span class="tk-sub">${esc(t('tk.subDesc'))}</span>
+    </div>
+    <div class="tk-card" role="region" aria-label="${esc(t('nav.newTask'))}">
       <div class="tk-top">
         ${ffSelect(tpls.map(p=>({v:p.name, label:(p.label||p.name),
                                  note:p.steps.length+' '+t('c.steps')})),
@@ -872,7 +875,43 @@ function tkStageHtml(tpls, flow){
           title="${esc(t('task.start'))}">${ico('arrowUp')}</button>
       </div>
     </div>
+
+    <div class="home-pipelines-sect">
+      <div class="sect-head">
+        <span class="sect-title">${esc(t('home.allPipelines'))}</span>
+        <button class="btn btn-ghost btn-sm" onclick="nav.go('pipeline-edit/new')">${ico('plus')} ${esc(t('home.newPipeline'))}</button>
+      </div>
+      <div class="pl-list" id="homePlList">${tpls.length
+        ? tpls.map(plRowHtml).join('')
+        : `<div class="pf-empty">${esc(t('task.noFlow'))}</div>`}</div>
+    </div>
   </div>`;
+}
+
+/* 模块 2：模板行 —— 十阶段点阵 / 阶段数 / 检查点数 / 已关联 Run 数 / 最近产物 / 快捷执行。
+   只读 /api/pipelines 已有的字段，不额外打请求。 */
+function plRowHtml(p){
+  const steps = p.steps || [];
+  const cp = steps.filter(s=>s.checkpoint).length;
+  const last = steps.length ? (steps[steps.length-1].out || '') : '';
+  const dots = steps.slice(0, 12).map(s=>`<i class="${s.checkpoint?'cp':''}"></i>`).join('');
+  return `<article class="pl-card-row${p.archived?' archived':''}">
+    <button type="button" class="pl-row-main" onclick="taskModal('${jsq(p.name)}')">
+      <div class="pl-row-title"><span class="pl-row-name">${esc(p.label||p.name)}</span>
+        <code>${esc(p.name)}</code></div>
+      <div class="pl-row-facts">
+        <span class="pl-mini-track" aria-hidden="true">${dots}</span>
+        <span class="pl-fact">${ico('flow')}${esc(t('home.plStages',{n:steps.length}))}</span>
+        ${cp?`<span class="pl-fact">${ico('shield')}${esc(t('home.plCp',{n:cp}))}</span>`:''}
+        <span class="pl-fact">${ico('runs')}${esc(t('home.plRuns',{n:p.runs||0}))}</span>
+        ${last?`<span class="pl-fact">${ico('file')}<code>${esc(last)}</code></span>`:''}
+      </div>
+    </button>
+    <div class="pl-row-ops" onclick="event.stopPropagation()">
+      <button class="pf-op pf-op-start" onclick="taskModal('${jsq(p.name)}')">${esc(t('home.plRun'))}</button>
+      <button class="pf-op" onclick="nav.go('pipeline-edit/${jsq(p.name)}')">${esc(t('c.edit'))}</button>
+    </div>
+  </article>`;
 }
 
 /* 和后端 agents.PERM_MODES 同源，改一处必须改两处（两边都有测试钉着）。
@@ -909,9 +948,9 @@ function tkPaintSteps(flow){
   const p = (ST.flows||[]).find(x=>x.name===flow);
   const steps = (p && p.steps) || [];
   box.innerHTML = steps.length
-    ? steps.map((s,i)=>`<span class="tk-step${s.checkpoint?' cp':''}" role="listitem"
+    ? steps.map((s,i)=>`<span class="tk-step-chip${s.checkpoint?' has-cp':''}" role="listitem"
         title="${esc(s.label||'')}${s.checkpoint?' · '+t('tk.cpMark'):''}">
-        <i>${i+1}</i>${esc(s.label||'')}</span>`).join('')
+        <i>${i+1}</i><span>${esc(s.label||'')}</span></span>`).join('')
     : `<span class="tk-step-empty">${esc(t('tk.noSteps'))}</span>`;
 }
 

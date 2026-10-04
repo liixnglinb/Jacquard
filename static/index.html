@@ -4,15 +4,32 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#181818">
-<link rel="icon" type="image/svg+xml" href="/static/favicon.svg?v=283aa713">
-<link rel="alternate icon" type="image/png" sizes="16x16" href="/static/favicon-16.png?v=283aa713">
-<link rel="alternate icon" type="image/png" sizes="32x32" href="/static/favicon-32.png?v=283aa713">
+<link rel="icon" type="image/svg+xml" href="/static/favicon.svg?v=20261004">
+<link rel="alternate icon" type="image/png" sizes="16x16" href="/static/favicon-16.png?v=20261004">
+<link rel="alternate icon" type="image/png" sizes="32x32" href="/static/favicon-32.png?v=20261004">
 <title>Jacquard 织流</title>
 <link rel="stylesheet" href="/static/fonts/fonts.css">
-<link rel="stylesheet" href="/static/style.css?v=283aa713">
-<link rel="stylesheet" href="/static/voyra-ui.css?v=5b53b123">
+<link rel="stylesheet" href="/static/style.css?v=20261004">
+<link rel="stylesheet" href="/static/voyra-ui.css?v=20261004">
 <script>
-/* 先落外观属性再渲染，避免深色模式闪白 */
+/* Voyra v11 · 阻断渲染的高优先外观启动器：从 localStorage 同步取回外观，
+   在 DOM 解析页面主体前就把 data-theme / data-sidebar / --text-scale 打在 <html> 上，
+   彻底根除深色模式下的 Webview 启动闪白。 */
+(function() {
+  try {
+    const raw = localStorage.getItem('__FF_LOCAL_APPEARANCE');
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (parsed.theme) document.documentElement.dataset.theme = parsed.theme;
+      if (parsed.sidebar) document.documentElement.dataset.sidebar = parsed.sidebar;
+      if (parsed.textSize) {
+        const scaleMap = { s: '0.92', m: '1', l: '1.12', xl: '1.26' };
+        document.documentElement.style.setProperty('--text-scale', scaleMap[parsed.textSize] || '1');
+      }
+    }
+  } catch (_) {}
+})();
+/* 再向本地服务核对一次（异步兜底）：localStorage 与后端不一致时以服务端为准。 */
 window.__FF_BOOT = fetch('/api/settings').then(r=>r.ok?r.json():{}).then(s=>{
   const map = {ui_theme:'theme', ui_font:'font', ui_lang:'lang',
                ui_textSize:'textSize', ui_uiZoom:'uiZoom', ui_contentWidth:'contentWidth',
@@ -30,21 +47,21 @@ window.__FF_BOOT = fetch('/api/settings').then(r=>r.ok?r.json():{}).then(s=>{
 </script>
 </head>
 <body>
-<div class="titlebar">
+<div class="titlebar" id="appTitlebar">
   <div class="tlb-left pywebview-drag-region">
-    <span class="tlb-brand"><img class="sb-logo" src="/static/logo-sm.svg?v=283aa713" alt=""><span
-      class="sb-name" id="brandName">织流</span></span>
+    <span class="tlb-brand"><img class="sb-logo" src="/static/logo-sm.svg?v=20261004" alt=""><span
+      class="sb-name" id="brandName">织流 Jacquard</span></span>
   </div>
   <div class="tlb-right">
     <div class="tlb-drag pywebview-drag-region"></div>
     <div class="tlb-acts">
-      <button class="ic-btn" id="sbActBtn" data-tip-any="1" onclick="sbActivity(event)"></button>
-      <button class="ic-btn" id="tbCollapse" data-tip-any="1" onclick="sbToggle()"></button>
+      <button class="ic-btn" id="sbActBtn" data-tip-any="1" onclick="sbActivity(event)" aria-label="活动状态"></button>
+      <button class="ic-btn" id="tbCollapse" data-tip-any="1" onclick="sbToggle()" aria-label="切换侧栏 (Ctrl+B)"></button>
     </div>
     <div class="tlb-win" id="tbWin" hidden>
-      <button class="tlb-wb" id="winMin" data-tip-any="1" onclick="winMin()"></button>
-      <button class="tlb-wb" id="winMax" data-tip-any="1" onclick="winMaxToggle()"></button>
-      <button class="tlb-wb tlb-wclose" id="winClose" data-tip-any="1" onclick="winClose()"></button>
+      <button class="tlb-wb" id="winMin" data-tip-any="1" onclick="winMin()" aria-label="最小化"></button>
+      <button class="tlb-wb" id="winMax" data-tip-any="1" onclick="winMaxToggle()" aria-label="最大化"></button>
+      <button class="tlb-wb tlb-wclose" id="winClose" data-tip-any="1" onclick="winClose()" aria-label="关闭"></button>
     </div>
   </div>
 </div>
@@ -91,12 +108,12 @@ window.__FF_BOOT = fetch('/api/settings').then(r=>r.ok?r.json():{}).then(s=>{
 
 <div class="ff-tip" id="ffTip" hidden></div>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
-<script src="/static/providers-catalog.js?v=283aa713"></script>
-<script src="/static/ui.js?v=5b53b123"></script>
-<script src="/static/voyra-ui.js?v=5b53b123"></script>
-<script src="/static/app.js?v=5b53b123"></script>
-<script src="/static/editor.js?v=5b53b123"></script>
-<script src="/static/run.js?v=5b53b123"></script>
-<script src="/static/voyra-dialogs.js?v=5b53b123"></script>
+<script src="/static/providers-catalog.js?v=20261004"></script>
+<script src="/static/ui.js?v=20261004"></script>
+<script src="/static/voyra-ui.js?v=20261004"></script>
+<script src="/static/app.js?v=20261004"></script>
+<script src="/static/editor.js?v=20261004"></script>
+<script src="/static/run.js?v=20261004"></script>
+<script src="/static/voyra-dialogs.js?v=20261004"></script>
 </body>
 </html>
