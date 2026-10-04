@@ -2,7 +2,7 @@
 
 > 更新时间：2026-09-25 · 上一任：Qoder agent 会话
 > 本文**不含任何密钥**，只写路径。密钥与站点全局信息在同目录之外的私人文档
-> `C:\Users\李星历\Desktop\个人开发信息\个人网站信息\Voyra个人网站说明.md`（含全部密钥，严禁入库）。
+> `..\个人开发信息\个人网站信息\Voyra个人网站说明.md`（含全部密钥，严禁入库）。
 > 读那一份的 0 节 + 2.6 节 + 5 节，再回来看这里。
 
 ---
@@ -385,7 +385,8 @@ COS 产物 key**（页里写死了 `Loom-1.2.6-setup.exe` 的直链）；`logo.s
   `gh api repos/<o>/<r>/commits/main --jq .sha` 确认线上真状态（本地 `origin/main` 引用可能滞后）。
 - **动 GitHub Actions / secret 前先 `unset GITHUB_TOKEN GH_TOKEN`**，本机那个环境变量会劫持凭据且无 workflow 权限。
 - `python` 不在 PATH（中文用户名把路径搞坏了）。用绝对路径：
-  `C:\Users\李星历\AppData\Local\Programs\Python\Python312\python.exe`，并且带 `PYTHONUTF8=1`。
+  `%LOCALAPPDATA%\Programs\Python\Python312\python.exe`（换成你本机的绝对路径即可），并且带 `PYTHONUTF8=1`。
+  （原先这里写死了某台机器的具体路径，会泄露本机用户名。）
 - **uvicorn 没有热重载**：改了 `app/*.py` 必须重启服务，否则你验的是旧代码（上一任在这上面被骗过两次）。
   静态文件不用重启，但浏览器侧还有一层缓存 —— 改 `static/` 后要升 `index.html` 里的 `?v=` 令牌。
   令牌算法（**别把 `index.html` 算进去**，否则改令牌会改哈希，永远追不上）：
@@ -477,8 +478,8 @@ make_icon.py           PIL 画图标（本机无 SVG 渲染器）。大档走矢
 ## 5. 发版 SOP（照做）
 
 ```bash
-cd "C:/Users/李星历/Desktop/FlowForge 数模流水线"
-PY="/c/Users/李星历/AppData/Local/Programs/Python/Python312/python.exe"
+cd "../FlowForge 数模流水线"
+PY="$LOCALAPPDATA/Programs/Python/Python312/python.exe"   # 换成你本机的 python 路径
 
 # 1. 版本号 + 全量测试
 #    改 app/version.py，然后：

@@ -44,7 +44,7 @@
 - **产品红线**：正文只能由本机 CLI 智能体（claude / codex）产出，Loom 不直连任何大模型接口。本计划不新增任何直连通道。
 - **后端不支持的控件一律不放。** 判断标准是"这个字段后端真读"。本计划唯一新增的控件（引擎选择器）已核过：`RunStartIn.engine: str = ""`（`app/main.py:490-493`）→ `start_run(..., engine)`（`app/runner.py:841-856`）用 `agents.ENGINES = ("claude","codex")` 校验后覆盖每一步。**"每条 run 选模型"后端没有参数，所以不做模型选择器。**
 - **一个功能只留一个入口。** 删掉的重复入口要在同一次提交里删干净（CSS 规则、i18n key、`RAIL_HIDDEN` 条目一起走），不留兼容分支。
-- 本文**不含任何密钥**，只写路径。密钥在 `C:\Users\李星历\Desktop\个人开发信息\个人网站信息\Voyra个人网站说明.md`（严禁入库）。
+- 本文**不含任何密钥**，只写路径。密钥在 `..\个人开发信息\个人网站信息\Voyra个人网站说明.md`（严禁入库）。
 - 动 GitHub Actions / secret 前先 `unset GITHUB_TOKEN GH_TOKEN`。**别改系统 hosts。**
 - `upload_cos.py` 现在**只列不删**。孤儿工作区只能看不能清。
 - **不跑真的 claude / codex CLI**（烧配额，且走用户本机中转）。任何要"真跑一次"的验证都停下来问人。
@@ -1112,7 +1112,7 @@ git commit -m "feat(update): 更新浮层改居中三态卡（照参考实现）
 - [ ] **Step 1: 先确认要抄的到底是哪一版**
 
 ```bash
-cd "C:/Users/李星历/Desktop/FlowForge 数模流水线"
+cd "../FlowForge 数模流水线"
 grep -n "const items = \[" -A 12 static/app.js          # 导航行顺序
 grep -n "sb-runlist\|sb-sub\|tk-bar\|tk-top\|tk-field" static/style.css   # 新结构的关键类
 ```

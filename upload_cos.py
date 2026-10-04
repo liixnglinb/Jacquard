@@ -21,8 +21,10 @@ REL = BASE / "release"
 CANDIDATES = [
     os.environ.get("LOOM_COS_SECRETS"),
     str(BASE / "cos_secrets.json"),
-    str(Path(r"C:/Users/李星历/Desktop/数学建模工作流软件/cos_secrets.json")),
 ]
+# 原先这里还硬编码了一个本机绝对路径（C:/Users/<用户名>/.../cos_secrets.json）。
+# 本仓库是公开仓库，该路径会泄露本机 Windows 用户名与目录结构，已移除。
+# 需要指定其它位置时请用环境变量 LOOM_COS_SECRETS，不要把个人路径写回源码。
 
 
 def load_secrets() -> dict:
