@@ -53,3 +53,6 @@ release/
 
 # ===== 隔离工作区（git worktree 落点，不入库）=====
 .worktrees/
+
+# AI 工具状态目录（.workbuddy 与 .workbuddy-ai 两个变体都覆盖，2026-10-04）
+.workbuddy*/
