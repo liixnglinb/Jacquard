@@ -6,7 +6,7 @@
 
 **Architecture:** 仍然是 FastAPI + 无构建步骤的原生 JS（`static/app.js` 单文件外壳 + `ui.js` i18n/外观 + `editor.js`/`run.js` 视图）。所有改动都落在前端；后端只在需要确认"这个控件有没有真能力"时被读，不改。每个改动配一条 pytest 契约测试（源码级正则/静态断言，可选 node 子进程真跑一段 JS），不发版即全绿。
 
-**Tech Stack:** Python 3.12（`C:\Users\李星历\AppData\Local\Programs\Python\Python312\python.exe`，`python` 不在 PATH）、pytest、原生 HTML/CSS/JS、pywebview 壳、无框架。
+**Tech Stack:** Python 3.12（解释器装在用户目录下，`python` 不在 PATH，需用绝对路径调用）、pytest、原生 HTML/CSS/JS、pywebview 壳、无框架。
 
 **Spec:** 没有单独的 spec 文件 —— 这轮的"设计文档"就是下面这张「参考实现的原文位置」表（brainstorming 阶段在对话里逐段过完并获批，未另立文档）。执行时以该表为准，每条改动都能追溯到一行参考代码或 `DESIGN.md` 的一条规则。
 
@@ -58,7 +58,7 @@
 
 ```bash
 # 跑全量契约测试（不需要网络，全绿即可）
-PYTHONUTF8=1 "/c/Users/李星历/AppData/Local/Programs/Python/Python312/python.exe" -m pytest -q
+PYTHONUTF8=1 "$PYTHON_EXE" -m pytest -q
 
 # 升缓存令牌（改过 static/ 的任何一条任务末尾都要做）
 OLD=$(grep -o 'v=[0-9a-f]\{8\}' static/index.html | head -1 | cut -d= -f2)
