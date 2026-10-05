@@ -557,7 +557,7 @@ code{font-family:var(--font-mono);font-size:.92em}
   line-height:18px;
   /* 边框不能撤：这一档底色就是侧栏色（--bg-sunken 与 --bg-shell 同值），
      只铺底不描边等于把 Ctrl N 印在侧栏上，一点边界都没有。 */
-  color:var(--ink-4);border:1px solid var(--line);border-radius:var(--r-1);padding:0 5px}
+  color:var(--ink-2);border:1px solid var(--line);border-radius:var(--r-1);padding:0 5px}
 .sb-nav{display:flex;flex-direction:column;gap:1px;margin-top:2px}
 /* 同一套样式要能同时穿在 <a>（路由）和 <button>（动作）上，所以把按钮的
    UA 默认值抹掉：不写 border/background 就是两条灰边和一个凸起底色，
@@ -818,7 +818,24 @@ body.up-on .up-card{opacity:1;transform:translate(-50%,-50%);pointer-events:auto
 }
 
 /* ---------- 主区 + 顶栏 ---------- */
-.main{flex:1;min-width:0;display:flex;flex-direction:column;overflow:hidden;background:var(--bg-page)}
+.main{flex:1;min-width:0;display:flex;flex-direction:column;overflow:hidden;background:var(--bg-page);position:relative}
+/* 导航加载反馈。nav 一开始就把 #view 置 aria-busy=true（app.js:768），以前只有
+   这个属性没有任何视觉 —— 实测挂住 /api 一秒多时，屏幕一直停在上一页，像点了没反应。
+   这里补一条 2px 金线压在主区顶沿：内容保持可见（不换骨架，无布局跳动），
+   动画只动 opacity（taste 的 transform/opacity 纪律），reduced-motion 下退成静态。 */
+.main:has(> #view[aria-busy="true"])::before{
+  content:"";position:absolute;top:0;left:0;right:0;height:2px;z-index:var(--z-sticky);
+  background:var(--brand);pointer-events:none;
+  /* 本地接口几十毫秒就回，无条件显示等于每次翻页都闪一条线。延迟 180ms，
+     fill:backwards 让等待期停在第一帧（opacity 0）—— 快导航整条看不见，
+     只有真挂住的请求才出线。关键帧自带进出淡淡入，循环头尾是 0，不跳变。 */
+  animation:busyPulse 1.2s var(--ease) 180ms infinite;
+  opacity:0}
+@keyframes busyPulse{0%{opacity:0}15%{opacity:.85}70%{opacity:.55}100%{opacity:0}}
+@media (prefers-reduced-motion: reduce){
+  .main:has(> #view[aria-busy="true"])::before{animation:busyStatic 180ms steps(1) forwards}
+  @keyframes busyStatic{to{opacity:.5}}
+}
 .topbar{
   height:var(--topbar-h);flex-shrink:0;display:flex;align-items:center;gap:10px;
   /* 不铺自己的底、不画下边线：页头就是内容列顶部的一段空白，
@@ -1673,7 +1690,6 @@ html[data-theme="light"] .modal{background:rgba(20,20,20,.32)}
 .ed-slug{font-family:var(--font-mono);font-size:var(--fs-micro);color:var(--ink-4);
   background:var(--bg-sunken);padding:2px 6px;border-radius:var(--r-1)}
 .ed-dirty-dot{color:var(--st-waiting);font-size:var(--fs-stat);line-height:1}
-.ed-actions{display:flex;align-items:center;gap:var(--sp-2);flex-shrink:0}
 
 /* ---------------- 模块 4：技能库（两栏分流） ---------------- */
 .skills-layout{display:flex;flex:1;min-height:0;height:100%}

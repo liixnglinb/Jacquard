@@ -427,8 +427,18 @@ def list_runs(pipeline=None, limit=50):
     return [_run_row(r) for r in rows]
 
 
+_RUN_COLS = ("status", "waiting_reason", "error", "cur_step", "steps", "created_at")
+
+
 def update_run(run_id, **fields):
-    """部分更新运行记录；steps 传 list 则自动序列化。"""
+    """部分更新运行记录；steps 传 list 则自动序列化。
+
+    列名进白名单：这层 f-string 拼的是列名（值全部走 ? 参数化），今天的调用面
+    只有 runner.py 那 12 处、传的都是这五列；但 update_run 是公开函数，将来谁
+    手滑把用户输入当列名传进来，这里就是唯一能拦住的闸。"""
+    unknown = [k for k in fields if k not in _RUN_COLS]
+    if unknown:
+        raise ValueError(f"update_run 不认识的列：{unknown}（合法列 {_RUN_COLS}）")
     if not get_run(run_id):
         return False
     sets, vals = [], []

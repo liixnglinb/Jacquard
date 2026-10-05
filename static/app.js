@@ -835,7 +835,7 @@ function tkStageHtml(tpls, flow){
   const ready = (ST.agents||[]).filter(a=>a.found).map(a=>a.engine);
   const ENGS = [{v:'', label:t('ed.engineDefault')}].concat(
     ready.map(v => ({v, label:t('eng.'+v)})));
-  const PERMS = [{v:'', label:t('ed.engineDefault'), note:t('pm.defaultNote')}].concat(
+  const PERMS = [{v:'', label:t('pm.default'), note:t('pm.defaultNote')}].concat(
     PERM_MODES.map(m => ({v:m, label:t('pm.'+m), note:t('pm.'+m+'D')})));
   /* 模型候选只有真存在的预设名 —— 裸模型名这里不做：那是编辑器里逐步挑端点的事，
      输入台要的是一句"整条流程换成这套端点"，而预设才是那个粒度。 */
@@ -925,7 +925,7 @@ const PERM_MODES = ['plan', 'acceptEdits', 'bypassPermissions'];
    不能走 postAgents：它成功后固定弹一句「已保存」，会把这句说清作用域的提示顶掉。 */
 window.tkPermSet = async function(v){
   const prev = ST.permMode||'';
-  const name = (m) => m ? t('pm.'+m) : t('ed.engineDefault');
+  const name = (m) => m ? t('pm.'+m) : t('pm.default');
   const r = await post('/api/agents', {permission_mode: v}).catch(e=>({detail:String(e)}));
   if(r && r.detail){
     /* 菜单在调 onChange 之前就把隐藏 input 和按钮文字都写好了（ffOpen 的 pick 分支），

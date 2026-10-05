@@ -207,7 +207,7 @@ const DICT = {
     'pm.bypassPermissions': '完全访问', 'pm.bypassPermissionsD': '命令与写文件都不拦',
     'pm.nowGlobal': '权限模式已设为全局默认：{m}',
     'up.tUpToDate': '已经是最新版 v{v}',
-    'pm.defaultNote': 'claude 全放行 / codex 沿用沙箱设置',
+    'pm.default': '默认权限', 'pm.defaultNote': 'claude 全放行 / codex 沿用沙箱设置',
     'rt.auto': '自动越过检查点', 'rt.autoD': '开启后检查点不再暂停，整条流程一口气跑完；关闭时每到一个检查点等你确认。',
 
     'pre.desc': '填了就注入给智能体；全部留空则沿用该 CLI 在本机的登录与代理配置。',
@@ -503,7 +503,7 @@ const DICT = {
     'pm.bypassPermissions': 'Full access', 'pm.bypassPermissionsD': 'no command or write checks',
     'pm.nowGlobal': 'Permission mode set as the global default: {m}',
     'up.tUpToDate': 'Already on the latest version v{v}',
-    'pm.defaultNote': 'claude bypasses checks / codex keeps its sandbox setting',
+    'pm.default': 'Default perms', 'pm.defaultNote': 'claude bypasses checks / codex keeps its sandbox setting',
     'rt.auto': 'Skip checkpoints', 'rt.autoD': 'When on, checkpoints never pause and the whole run goes through in one shot; when off each checkpoint waits for you.',
 
     'pre.desc': 'Values get injected into the agent; leave everything empty to reuse the CLI’s own login.',

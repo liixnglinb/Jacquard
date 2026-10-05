@@ -626,10 +626,8 @@ function plDrawEditor(){
         <span class="ed-dirty-dot" id="edDirtyDot" title="${esc(t('ed.dirty'))}"
           aria-label="${esc(t('ed.dirty'))}"${plDirty()?'':' hidden'}>●</span>
       </div>
-      <div class="ed-actions">
-        <button class="btn btn-ghost btn-sm" onclick="nav.go('pipelines')">${esc(t('c.cancel'))}</button>
-        <button class="btn btn-primary btn-sm" onclick="plSave()">${esc(t('ed.save'))}</button>
-      </div>
+      <!-- 取消/保存只留在顶栏（__chrome.actions）：同一对按钮曾经在页头再来一份，
+           两处同时可见、处理器相同 —— 一个功能两个入口，改哪处都会让人以为改了另一处。 -->
     </div>
     <div class="card">
       <div class="card-h"><div><div class="ct">${esc(t('ed.basic'))}</div></div></div>
