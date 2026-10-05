@@ -114,6 +114,37 @@ def test_t_lookup_keeps_intentionally_empty_strings():
     assert "||" not in code, "t() 又用 || 取字典了，空文案会被渲染成 key 本身"
 
 
+def test_every_stylesheet_has_balanced_comments():
+    """CSS 注释里出现 */ 会**提前关掉**那条注释，剩下的中文就成了非法声明。
+    2026-10-05 真踩过：给 voyra-foundation.css 写注释时打了
+    "--vr-canvas/surface*/line*" 这样的字面量，那个 */ 把 :root 整块废掉，
+    于是 --vr-radius-control 取空、全站按钮圆角塌成 0、min-height 一起失效 ——
+    而 style.css 的契约测试一条都不会红，因为它读的是另一个文件。
+    这条把四个样式表都扫一遍：注释必须成对，且 :root 那块真的解析得出来。"""
+    for name in ("style.css", "voyra-ui.css", "voyra-foundation.css", "voyra-software-base.css"):
+        s = (STATIC_DIR / name).read_text(encoding="utf-8")
+        depth = 0
+        i = 0
+        while i < len(s):
+            if s[i] == "/" and i + 1 < len(s) and s[i + 1] == "*":
+                depth += 1
+                i += 2
+            elif s[i] == "*" and i + 1 < len(s) and s[i + 1] == "/":
+                assert depth > 0, f"{name} 第 {i} 字符附近出现没有配对的 */（注释被提前关掉）"
+                depth -= 1
+                i += 2
+                continue
+            else:
+                i += 1
+        assert depth == 0, f"{name} 有 {depth} 条注释没关掉"
+        stripped = re.sub(r"/\*.*?\*/", "", s, flags=re.S)
+        assert stripped.count("{") == stripped.count("}"), f"{name} 去掉注释后花括号不平"
+    for name in ("voyra-foundation.css",):
+        s = (STATIC_DIR / name).read_text(encoding="utf-8")
+        assert re.search(r":root\s*\{[^}]*--vr-canvas\s*:", s), \
+            f"{name} 的 :root 块解析不出 --vr-canvas —— 十有八九是注释吃掉了它"
+
+
 def test_no_hardcoded_hex_outside_token_blocks():
     """颜色一律走 var()，否则深色模式必破；只有 :root / html[data-*] 里能写字面色。"""
     bad, in_tokens = [], False
@@ -369,9 +400,16 @@ def test_recent_runs_are_nested_under_their_project_not_listed_twice():
     参考实现是嵌在项目行下面、用一条左边框轨道缩进（workspace-grouped-tasks/types.ts:35-47）。"""
     seg = APP_JS.split("async function renderSidebarLists(")[1].split("\n}\n")[0]
     assert 'class="sb-run sb-sub' in seg, "run 没嵌进项目行"
-    assert ".sb-runlist" in CSS, "缩进要有一层轨道容器"
+    assert ".sb-runlist" in CSS, "缩进要有一层容器"
     rail = CSS.split(".sb-runlist")[1][:220]
-    assert "border-left" in rail, "缩进用左边框轨道，不是光加 padding（参考实现同）"
+    # 2026-10-05 逐像素扫参考图：嵌套行左边从 x=50 一路到 x=300 都是同一个
+    # #242624，没有任何一列是缝色 —— 那条 border-left 在人家那里是缩进辅助线，
+    # 不是界面元素。旧断言引的是 types.ts:35-47 的 ml-4 border-l pl-2，
+    # 引的是源码而不是像素，所以它把一条不该存在的杆子钉成了契约。
+    # 反过来钉住：轨道必须没有，缩进必须还在（margin+padding 两道）。
+    assert "border-left" not in rail, "嵌套行左边又长出轨道了（参考图量的那条没有）"
+    assert "margin-left:12px" in rail and "padding-left:8px" in rail, \
+        "轨道删了要留缩进，否则项目和它的任务看起来是两拨不相干的行"
     assert "t('sb.recent')" not in seg, "「最近运行」那一组还在 —— 现在它是重复入口"
     assert "relTime(" in seg, "次行没打相对时间"
     assert "sb-gcount" in seg, "在跑计数挂在分组标题上，不是每行一个"
@@ -644,10 +682,23 @@ def _rail_block():
 
 def test_rail_hides_every_text_label():
     """轨道只有 56px，任何没藏起来的文字都会把侧栏撑破或自己被打断。
-    双向锁：藏多了（那个类已经不存在了）也算漂移。"""
+    双向锁：藏多了（那个类已经不存在了）也算漂移。
+    两种藏法都认：display:none 是整块撤（图标按钮、子列表），
+    max-width:0 + opacity:0 是跟着盒子收（文字标签）—— 后者让折叠这一步
+    不再是"内容先被清空、框子才缩"。但必须两个都在：只淡出不收宽度，
+    文字就还占着 168px，轨道里会挤出一列看不见的空格。"""
     block = _rail_block()
     hidden = set()
     for sels in re.findall(r"([^{}]*)\{display:none\}", block):
+        for s in sels.split(","):
+            s = re.sub(r'^\s*html\[data-sidebar="collapsed"\]\s*', "", s.strip())
+            if s:
+                hidden.add(s)
+    for sels, body in re.findall(r"([^{}]*)\{([^}]*)\}", block):
+        if "max-width:0" not in body:
+            continue
+        assert "opacity:0" in body, \
+            f"用 max-width:0 收起来的标签必须同时淡出，否则它只是看不见、还占着宽度：{sels[:80]}"
         for s in sels.split(","):
             s = re.sub(r'^\s*html\[data-sidebar="collapsed"\]\s*', "", s.strip())
             if s:
@@ -846,12 +897,18 @@ def test_stats_page_keeps_the_measured_rhythm():
     """这几条是 2026-09-22 对着参考截图逐像素量出来的（图像 px ÷1.5 = CSS px）。
     改回去不会弄坏任何功能，只会悄悄不像 —— 所以只能靠断言钉住。"""
     need = {
-        ".st-strip>div{background:var(--bg-panel);padding:9px 10px":
-            "顶部条卡上下 9px（整条量到 66，参考 65）", ".st-strip span{display:block;margin-top:6px;font-size:var(--fs-body)":
-            "数字→标签 6px、标签 13px（参考 13）", ".hm-grid{display:flex;gap:3px 2px}":
-            "横向节距 14 = 12 格 + 2 缝（参考 14.3），52 列才铺得下还留得住两侧内边距", ".hm-axis{display:flex;gap:2px;margin-top:15px}":
-            "网格→月份轴 15px，且轴的节距必须跟格子一致，否则轴会逐列偏掉", ".hm-wrap{overflow-x:auto;padding:0 18px 2px}":
-            "网格与卡片标题同一条左线（18px）", ".st-stats .st-block{margin-bottom:19px}":
+        ".st-strip>div{background:var(--bg-panel);padding:11px 10px":
+            "顶部条卡上下 11px（整条 72）—— 2026-10-05 随 --fs-stat 从 18 抬到 22 一起改：",
+        ".st-strip span{display:block;margin-top:5px;font-size:var(--fs-meta)":
+            "数字→标签 5px、标签 12px。数字抬到 22 之后 14px 的标签会把这一格撑成"
+            "两行一样重，读数就没有主次了",
+        ".hm-grid{display:flex;gap:3px 2px}":
+            "横向节距 14 = 12 格 + 2 缝（参考 14.3），52 列才铺得下还留得住两侧内边距",
+        ".hm-axis{display:flex;gap:2px;margin-top:15px}":
+            "网格→月份轴 15px，且轴的节距必须跟格子一致，否则轴会逐列偏掉",
+        ".hm-wrap{overflow-x:auto;padding:0 18px 2px}":
+            "网格与卡片标题同一条左线（18px）",
+        ".st-stats .st-block{margin-bottom:19px}":
             "统计页卡片之间 19px（别的分区仍走 28px）",
     }
     for frag, why in need.items():
@@ -1078,10 +1135,14 @@ NESTED_RADIUS = {
 def _radius_of(sel):
     """取某个选择器**作为整条规则主语**时的圆角档位。
     只认顶格/跟在 } 或逗号之后的那种：`.tk-bar .cp-send{margin-left:auto}` 是布局微调，
-    不是圆角来源，早先按"类名出现即可"匹配会被它抢走。"""
-    m = re.search(r"(?:^|[},])\s*" + re.escape(sel) + r"\s*\{([^}]*)\}", CSS, re.M)
-    assert m, f"找不到 {sel} 的规则，NESTED_RADIUS 表该更新了"
-    v = re.search(r"border-radius:\s*([^;}]+)", m.group(1))
+    不是圆角来源，早先按"类名出现即可"匹配会被它抢走。
+    取**最后**一条顶格声明：同一选择器写两遍时赢的是后一条，读第一条等于给
+    不起作用的那份把脉（.tk-card 曾经前一份写 --r-4、后一份写 --r-5，
+    两张表各对一个，于是两边都"通过"）。"""
+    hits = re.findall(r"(?:^|[},])\s*" + re.escape(sel) + r"\s*\{([^}]*)\}", CSS, re.M)
+    assert hits, f"找不到 {sel} 的规则，NESTED_RADIUS 表该更新了"
+    body = hits[-1]
+    v = re.search(r"border-radius:\s*([^;}]+)", body)
     assert v, f"{sel} 没有 border-radius，表里却写着它"
     got = v.group(1).strip()
     return (re.match(r"var\((--[\w-]+)\)", got) or [None, got])[1]
@@ -1128,6 +1189,20 @@ def _rule(sel):
     return m.group(1)
 
 
+def _winning_rule(sel):
+    """取真正生效的那一条：顶格声明里的**最后**一条。
+    CSS.split(sel)[1] 取的是第一条，而 v11 追加段的设计就是"同选择器写在后面、
+    按次序自然覆盖"（本文件 1500 行那段开头就是这么写的）—— 于是几十条断言
+    一直在给已经不起作用的那份把脉。1.2.9 的"测试全绿、界面走另一套"就是这么
+    上线的。断言要跟着会赢的那条读。
+    外壳那批（.sidebar / .tlb-* / .sb-* / .titlebar / .topbar）已经在 2026-10-05
+    合并成一份了，由 test_no_shell_selector_is_declared_twice 单独守；
+    其余组件仍允许两段并存，但本函数保证读到的是生效的那段。"""
+    hits = re.findall(r"(?m)^" + re.escape(sel) + r"\s*\{([^}]*)\}", CSS)
+    assert hits, f"找不到顶格的 {sel} 规则"
+    return hits[-1]
+
+
 def test_composer_is_one_surface_with_a_darker_strip():
     """实测参考图：卡片 body 一整片 #2B2B2B，顶部「选流程」那条是更暗的 #222222，
     中间一条 #4b4b4b 分隔线；textarea 自己不画盒子。
@@ -1135,9 +1210,17 @@ def test_composer_is_one_surface_with_a_darker_strip():
     card = _rule(".tk-card")
     assert "background:var(--bg-composer)" in card, \
         "卡片表面要用 composer 那一档（暗色 #2B2B2B）；挂 --bg-panel 会整体暗一档"
-    assert "border:1px solid var(--line)" in card, "常态边框是 .1（参考图量到的 .15 是聚焦态）"
-    assert "border-color:var(--line-strong)" in _rule(".tk-card:focus-within"), \
-        "聚焦抬到 .15 = 实测 #4b4b4b；别换成 --accent-line（.45 太亮，参考图没这么干）"
+    assert "border:1px solid var(--line)" in card, "常态边框走 --line 这一档"
+    # 2026-10-05 反过来钉：聚焦**不许**改描边。
+    # 这一条以前断言的是 border-color 抬到 --line-strong（当时的实测 #4b4b4b），
+    # 用户这次点名"选中对话框不要旁边变成高亮"，量的就是它 —— 整张输入台外面
+    # 亮起一圈比正文还亮的边。焦点反馈改由阴影承担（卡片被端起来），边框一动不动。
+    focus = _winning_rule(".tk-card:focus-within")
+    assert "border-color" not in focus, \
+        f"输入台聚焦又在提描边了（用户点名不要的那圈高亮）：{focus}"
+    assert "box-shadow" in focus, "聚焦总得有个反馈：撤了描边就要抬阴影"
+    for blk in re.findall(r"(?m)^\.tk-card:focus-within\s*\{([^}]*)\}", CSS):
+        assert "border-color" not in blk, "还有另一条 .tk-card:focus-within 在提描边"
     top = _rule(".tk-top")
     assert "background:var(--bg-strip)" in top, "顶部条带要有自己的底色，不然三段只是靠线分"
     assert "border-bottom:1px solid var(--line-strong)" in top, "条带下的分隔线同边框一档"
@@ -1147,14 +1230,30 @@ def test_composer_is_one_surface_with_a_darker_strip():
 
 
 def test_bg_strip_is_darker_in_both_themes():
-    """Voyra v11 起条带底改走 --bg-sunken 这一层 alpha 令牌（v10 的 --bg-strip
-    保留为别名指向它）。两套主题都必须声明 --bg-sunken，否则条带会掉成透明。"""
+    """Voyra v11 起条带底改走 --bg-sunken 这一层（v10 的 --bg-strip 保留为别名
+    指向它）。两套主题都必须声明，否则条带会掉成透明。
+
+    2026-10-05 改判据：以前钉的是"写成 rgba("，那是 v11 顺手的取值而不是意图。
+    真正要守的两件事是 —— ① 声明了、不透明（热力图 0 档格子拿它当 color-mix 的
+    基色，混进透明底会让格子跟着卡片底色漂，四档深浅就读不出来了）；
+    ② 亮色下它确实比表面暗。暗色那档反过来（比卡片亮），因为参考图里
+    卡内格子 #2E332E 就是压在 #1F2120 卡片上的一个更亮的档。"""
     blocks = CSS.split("html[data-theme=\"dark\"]")
     assert len(blocks) == 2, "找不到暗色那段，这条测试的切法要跟着改"
+    hexes = {}
     for name, blk in (("light", blocks[0]), ("dark", blocks[1])):
-        assert re.search(r"--bg-sunken:\s*rgba\(", blk), f"{name} 主题下缺 --bg-sunken"
+        m = re.search(r"--bg-sunken:\s*(#[0-9A-Fa-f]{6})", blk)
+        assert m, f"{name} 主题的 --bg-sunken 没声明成实心 6 位十六进制（不能是透明/半透明）"
+        hexes[name] = m.group(1)
         assert re.search(r"--bg-strip:\s*var\(--bg-sunken\)", blocks[0]), \
             "--bg-strip 应作为 --bg-sunken 的别名保留，别让旧规则失效"
+    surf = {}
+    for name, blk in (("light", blocks[0]), ("dark", blocks[1])):
+        surf[name] = re.search(r"--bg-surface:\s*(#[0-9A-Fa-f]{6})", blk).group(1)
+    assert _l_star(hexes["light"]) < _l_star(surf["light"]), \
+        f"亮色条带 {_l_star(hexes['light']):.1f} 不比表面 {_l_star(surf['light']):.1f} 暗"
+    assert _l_star(hexes["dark"]) > _l_star(surf["dark"]), \
+        f"暗色卡内格子要比卡片亮（参考图 #2E332E 压在 #1F2120 上）"
 
 
 def test_send_button_is_muted_until_there_is_a_brief():
@@ -1296,8 +1395,12 @@ def test_type_scale_is_anchored_to_the_measured_sizes():
     assert m, "html 的 font-size 不再是 calc(<n>px * var(--text-scale))"
     root = int(m.group(1))
     assert root == 14, f"根字号 {root}px，参考实现是 14px"
-    want = {"--fs-micro": 10, "--fs-meta": 12, "--fs-sub": 13, "--fs-body": 14,
-            "--fs-lead": 16, "--fs-stat": 18, "--fs-h2": 20, "--fs-h1": 27}
+    want = {"--fs-micro": 11, "--fs-meta": 12, "--fs-sub": 13, "--fs-body": 14,
+            "--fs-lead": 16, "--fs-stat": 22, "--fs-h2": 20, "--fs-h1": 27}
+    # micro 10→11、stat 18→22 是 2026-10-05 改的，两处都有理由：
+    # micro 是十阶段芯片 / 计数徽标 / Ctrl N 那几处唯一的字号，10px 的中文读不动；
+    # stat 那条刻度的注释自己写着"统计条那排数字字高 ≈20px"，而 18px 字号只给得出
+    # 13px 字高 —— 一直在报一个界面上不存在的读数。中间五档是被量出来的，不动。
     for key, px in want.items():
         v = re.search(re.escape(key) + r":([\d.]+)rem", CSS)
         assert v, f"{key} 从刻度里消失了"
@@ -1308,16 +1411,29 @@ def test_type_scale_is_anchored_to_the_measured_sizes():
 
 
 def test_the_two_columns_are_split_by_color_and_not_by_a_line():
-    """Voyra v11：分栏由色差（#18191D vs #121316）+ 一条 1px alpha 右边框共同表达。
-    页头仍旧不铺自己的底、不画下边线，否则右侧又被切出一道接缝。"""
+    """分栏的第一判据是色差，那条 1px 边只是缝的收口。
+    2026-10-05 逐像素重量参考图：侧栏 #242624 / 画布 #191B1A，中间确实有一个
+    单像素的 #373C37，卡片顶边也是同一个值 —— 所以"两栏之间没有任何线"那句
+    旧注释是错的（它来自另一张图），而 v11 加右边框反而是照图的。两边都记下来，
+    下次别再靠注释猜。
+    参考图自己那对只差 ΔL* 5.4，因为它有线兜底；本项目要求 ≥6.0，
+    这样即便哪天线没了，分栏也还在。"""
     dark = CSS.split('html[data-theme="dark"]')[1].split("}")[0]
     shell = re.search(r"--bg-shell:(#[0-9A-Fa-f]{6})", dark).group(1).upper()
     page = re.search(r"--bg-page:(#[0-9A-Fa-f]{6})", dark).group(1).upper()
-    assert (shell, page) == ("#18191D", "#121316"), \
-        f"暗色两栏是 #18191D / #121316，现在是 {shell} / {page}"
-    sb = CSS.rsplit(".sidebar{", 1)[1].split("}")[0]
-    assert "border-right" in sb, "v11 用 1px alpha 边框表达结构，侧栏要有右边框"
-    tb = CSS.rsplit(".topbar{", 1)[1].split("}")[0]
+    assert (shell, page) == ("#2A2A2A", "#1A1A1A"), \
+        f"暗色两栏是 #2A2A2A / #1A1A1A，现在是 {shell} / {page}"
+    d = abs(_l_star(shell) - _l_star(page))
+    assert d >= 6.0, f"暗色两栏 ΔL* 只有 {d:.1f}，撑不起没有彩底的分栏"
+    for name, hx in (("侧栏", shell), ("画布", page)):
+        r, g, b = (int(hx[i:i + 2], 16) for i in (1, 3, 5))
+        assert max(r, g, b) - min(r, g, b) <= 2, \
+            f"{name} {hx} 又带回色相了（R{r}/G{g}/B{b}），中性面偏色会把金色一起染脏"
+    sb = _winning_rule(".sidebar")
+    assert "border-right:1px solid var(--line)" in sb, \
+        "侧栏要有那条 1px 缝，且吃 --line（半透明压在两层底上会差出 5 个亮度）"
+    assert "--line-soft" not in sb, "缝用最淡那档 = 看不见，等于没画"
+    tb = _winning_rule(".topbar")
     assert "border-bottom" not in tb, "页头有下边线 = 右侧被切成两块"
     assert "background" not in tb, "页头铺自己的底 = 它成了独立的一条带子"
 
@@ -1332,16 +1448,103 @@ def _l_star(hx: str) -> float:
 
 
 def test_the_light_columns_are_split_by_the_same_margin_of_difference():
-    """亮色下侧栏与页面必须看得出分栏。v11 方案给的 #ECEEF2 只到 ΔL* 3.2，
-    达不到本项目量出来的 6.0 下限（暗色那对曾达 10.3），故按 §0.9.3 上调到
-    同色系的 #DDE3EC（ΔL* ≈ 7.2），并保留这条不变量而不是放宽它。"""
+    """亮色下侧栏与页面必须看得出分栏，判据和暗色那条一样是 CIE ΔL* ≥ 6.0。
+    历史上这里吃过两次亏：v11 方案给的 #ECEEF2 只到 3.2（看不出分栏），
+    上一轮按 §0.9.3 上调成 slate-200 #DDE3EC 够到 7.2 但带蓝 —— 压在金色强调上
+    会把中性档一起染脏。现在取 #E4E4E4（ΔL* 6.8），留在中性灰家族里。"""
     light = CSS.split(":root{")[1].split('html[data-theme="dark"]')[0]
     shell = re.search(r"--bg-shell:(#[0-9A-Fa-f]{6})", light).group(1)
     page = re.search(r"--bg-page:(#[0-9A-Fa-f]{6})", light).group(1)
+    assert (shell, page) == ("#E4E4E4", "#F7F7F7"), \
+        f"亮色两栏是 #E4E4E4 / #F7F7F7，现在是 {shell} / {page}"
     d = abs(_l_star(shell) - _l_star(page))
-    assert d >= 6.0, f"亮色两栏 ΔL* 只有 {d:.1f}，看不出分栏（暗色那对是 10.3）"
-    sb = CSS.rsplit(".sidebar{", 1)[1].split("}")[0]
-    assert "border-right" in sb, "亮色下再叠一条 1px alpha 边框，结构节奏更稳"
+    assert d >= 6.0, f"亮色两栏 ΔL* 只有 {d:.1f}，看不出分栏"
+    sb = _winning_rule(".sidebar")
+    assert "border-right:1px solid var(--line)" in sb, "亮色下那条缝同档同色"
+
+
+def test_the_two_palette_layers_agree():
+    """style.css 的语义令牌和 voyra-foundation.css 的 --vr-* 必须逐值相等。
+
+    这条是补 1.2.9 那次事故的洞：static/voyra-ui.css 里曾挂着一整块 :root 覆盖，
+    把 style.css 的 --bg-*/--ink*/--line* 重新映射到 --vr-*。style.css 写冷 slate、
+    覆盖层写橄榄，而本文件只读 style.css —— 于是"全绿上线"了一套界面上根本不
+    存在的调色板，还顺手把上一轮实测过的侧栏亮度、行距、分栏线一起盖掉。
+    覆盖层已经删了；这条断言保证它回来时不会又一次静默生效。"""
+    found = (STATIC_DIR / "voyra-foundation.css").read_text(encoding="utf-8")
+    ui = (STATIC_DIR / "voyra-ui.css").read_text(encoding="utf-8")
+    # 覆盖层不许复活：voyra-ui.css 里再出现给 --bg-*/--ink*/--line* 赋值的 :root 块，
+    # 就是那次事故的形状。
+    for head in re.finditer(r":root[^{]*\{([^}]*)\}", ui):
+        body = head.group(1)
+        bad = [t for t in ("--bg-", "--ink", "--line") if re.search(re.escape(t) + r"[\w-]*\s*:", body)]
+        assert not bad, f"voyra-ui.css 里又出现了给 {bad} 赋值的 :root 覆盖块（影子调色板）"
+    pairs = [("--bg-page", "--vr-canvas"), ("--bg-surface", "--vr-surface"),
+             ("--bg-shell", "--vr-surface-soft"), ("--bg-hover", "--vr-surface-hover"),
+             ("--bg-active", "--vr-surface-active"), ("--bg-raised", "--vr-surface-raised"),
+              ("--ink", "--vr-ink"), ("--ink-2", "--vr-body"),
+             ("--ink-3", "--vr-muted"), ("--ink-4", "--vr-faint"),
+             ("--line", "--vr-line"), ("--line-strong", "--vr-line-strong"),
+             ("--brand", "--vr-brand"), ("--brand-soft", "--vr-brand-soft")]
+    blocks = CSS.split('html[data-theme="dark"]')
+    assert len(blocks) == 2
+    for name, blk in (("亮色", blocks[0]), ("暗色", blocks[1])):
+        vr = re.search(r":root\[data-theme=\"dark\"\].*?\{(.*?)\}", found, re.S) \
+            if name == "暗色" else re.search(r"^:root \{(.*?)\}", found, re.S | re.M)
+        assert vr, f"voyra-foundation.css 里找不到 {name} 那块"
+        vrs = dict(re.findall(r"(--[\w-]+):\s*(#[0-9a-fA-F]{6})", vr.group(1)))
+        mine = dict(re.findall(r"(--[\w-]+):\s*(#[0-9A-Fa-f]{6})", blk))
+        for a, b in pairs:
+            assert a in mine, f"{name} 的 style.css 缺 {a}"
+            assert b in vrs, f"{name} 的 voyra-foundation.css 缺 {b}"
+            assert mine[a].upper() == vrs[b].upper(), \
+                f"{name} 下 {a}={mine[a]} 与 {b}={vrs[b]} 不相等了 —— 两层又开始各写一套"
+
+
+def test_selection_states_are_neutral_not_brand():
+    """选中态和悬停态必须是中性档，而且两档要分得开。
+    用户点名的"选中对话框不要旁边变成高亮"：以前 --bg-active 吃的是
+    --vr-brand-soft（暗色 #373021，R-B=+22 的一块米黄），划到哪个项目哪一行就
+    糊出一块暖色板；而 .sb-item 的 hover 和 active 又指同一个令牌，鼠标划过
+    哪行哪行就冒充"当前所在"。"""
+    blocks = CSS.split('html[data-theme="dark"]')
+    for name, blk in (("亮色", blocks[0]), ("暗色", blocks[1])):
+        for tok in ("--bg-active", "--bg-hover"):
+            hx = re.search(re.escape(tok) + r":(#[0-9A-Fa-f]{6})", blk).group(1)
+            r, g, b = (int(hx[i:i + 2], 16) for i in (1, 3, 5))
+            assert max(r, g, b) - min(r, g, b) <= 2, \
+                f"{name} {tok}={hx} 带彩，选中行会糊成一块有色板"
+        act = re.search(r"--bg-active:(#[0-9A-Fa-f]{6})", blk).group(1)
+        hov = re.search(r"--bg-hover:(#[0-9A-Fa-f]{6})", blk).group(1)
+        assert _l_star(act) != _l_star(hov), \
+            f"{name} hover 与 active 同亮度（{hov}/{act}），划过的行会冒充选中的那行"
+    hover = re.search(r"\.sb-item:hover\{([^}]*)\}", CSS).group(1)
+    active = re.search(r"\.sb-item\.active\{([^}]*)\}", CSS).group(1)
+    assert "var(--bg-hover)" in hover, "hover 还在吃 --bg-active"
+    assert "var(--bg-active)" in active, "active 该吃 --bg-active"
+    assert "font-weight:600" in active, "选中行要靠字重站住，不只靠底色"
+    ic = re.search(r"\.sb-item\.active \.ic\{([^}]*)\}", CSS).group(1)
+    assert "var(--brand)" in ic, f"选中行的图标没上色（{ic}）—— 底色压平之后它得负责指认"
+
+
+def test_no_shell_selector_is_declared_twice():
+    """外壳那批选择器整份文件里只许出现一次。
+    1.2.9 的 v11 追加段用同样的选择器把 470-640 那段旧壳样式重新声明了一遍
+    （分栏线、行高 34px、字号 --fs-sub、静止色 --ink-2、hover 与 active 同色），
+    按 CSS 次序自然盖掉了旧段 —— 而本文件里几十条断言用 CSS.split(sel)[1]
+    取的是第一条命中。于是测试给不起作用的那份把脉，真实界面走另一份。
+    这条把"两份真相"本身钉死，下次再追加一段就先撞上它。"""
+    shell_sels = (".titlebar", ".tlb-left", ".tlb-right", ".tlb-brand", ".tlb-drag",
+                  ".tlb-acts", ".tlb-win", ".tlb-wb", ".sidebar", ".sb-scroll", ".sb-nav",
+                  ".sb-item", ".sb-kbd", ".sb-group", ".sb-runlist", ".sb-run", ".sb-sub",
+                  ".sb-foot", ".sb-me", ".sb-me-av", ".sb-me-name", ".topbar", ".main")
+    # 只看顶格的选择器（缩进的那些在 @media 里，那是有意的响应式覆写）
+    dupes = {}
+    for sel in shell_sels:
+        n = len(re.findall(r"(?m)^" + re.escape(sel) + r"\{", CSS))
+        if n > 1:
+            dupes[sel] = n
+    assert not dupes, f"这些外壳选择器被声明了不止一次，后一份会静默盖掉前一份：{dupes}"
 
 
 def test_no_input_paints_an_accent_halo_on_focus():
@@ -1394,14 +1597,22 @@ def test_sidebar_row_pitch_survives_the_keycap_border():
 
 def test_the_title_bar_paints_no_surface_of_its_own():
     """参考图那条行不是"一条栏"，是左右两栏各自往上长出来的空白：
-    左段取侧栏色、右段取页面色，中间没有横线。给它自己一个底色就前功尽弃。"""
-    tl = CSS.split(".titlebar{")[1].split("}")[0]
-    assert "background" not in tl, "标题行铺了自己的底 = 右侧又被切出一道带子"
-    left = CSS.split(".tlb-left{")[1].split("}")[0]
-    right = CSS.split(".tlb-right{")[1].split("}")[0]
+    左段取侧栏色、右段取页面色。给它自己一个底色就前功尽弃。
+    下边线是允许的，而且必须有 —— 2026-10-05 逐像素量过，标题行与内容之间
+    在 x=900 和 x=1600 两处都是同一个单像素 #373C37，和侧栏那道缝同色。
+    取 rsplit 而不是 split：整份文件里同一选择器出现两次时，赢的是后面那条，
+    断言必须跟着读得到的那份。"""
+    tl = _winning_rule(".titlebar")
+    assert "background" not in tl or "background:transparent" in tl, \
+        "标题行铺了自己的底 = 右侧又被切出一道带子"
+    left = _winning_rule(".tlb-left")
+    right = _winning_rule(".tlb-right")
     assert "var(--bg-shell)" in left, "左段没跟侧栏同色"
     assert "var(--bg-page)" in right, "右段没跟页面同色"
-    assert "border-bottom" not in tl and "border-bottom" not in left and "border-bottom" not in right
+    assert "border-bottom" not in tl, "标题行整体画线 = 左右两段的缝被糊成一条"
+    for name, blk in (("左段", left), ("右段", right)):
+        assert "border-bottom:1px solid var(--line)" in blk, \
+            f"标题行{name}缺那条收口缝，窗口顶边会和内容粘成一片"
 
 
 def test_window_buttons_only_exist_when_the_bridge_exists():
@@ -1566,18 +1777,25 @@ def test_v11_keymap_is_the_single_source_of_truth():
 
 def test_v11_container_radius_ladder():
     """顶层容器 / 卡片 / 浮层严格遵循嵌套圆角梯度。
-    取每条选择器的**最后一次**声明 —— v11 组件层追加在文件末尾，按 CSS 顺序生效。"""
+    这张表以前和 NESTED_RADIUS 各写一份、并且读法不同（一张取第一条、一张取最后一条），
+    于是 .tk-card 同时"应该是 --r-4"和"应该是 --r-5"而两边都绿 —— 两份真相的测试
+    只会一起说谎。现在先要求两张表对同一个选择器给同一档，再统一走 _radius_of
+    （它读生效的那条）。"""
     expectations = {
-        ".tk-card": "--r-5", ".modal-box": "--r-5", ".up-card": "--r-5",
+        # 输入台壳按 2026-09-24 的像素量是 12 = --r-4，不是文档许可的 2xl；
+        # 见 NESTED_RADIUS 那条注释。曾经 v11 段把它写成 --r-5，
+        # 又被 voyra-ui.css 的硬编码 12px 盖回来，所以看起来一直是对的。
+        ".tk-card": "--r-4", ".modal-box": "--r-5", ".up-card": "--r-5",
         ".step-card": "--r-4", ".st-panel": "--r-4", ".toast": "--r-5", ".cp-send": "--r-3",
     }
+    clash = {s: (r, expectations[s]) for s, r in NESTED_RADIUS.items()
+             if s in expectations and expectations[s] != r}
+    assert not clash, f"两张圆角表对同一选择器给了不同档（NESTED_RADIUS, 本表）：{clash}"
     bad = {}
     for sel, want in expectations.items():
-        parts = CSS.rsplit(sel + "{", 1)
-        assert len(parts) == 2, f"找不到 {sel} 的规则"
-        m = re.search(r"border-radius:\s*var\((--r-\d+)\)", parts[1].split("}")[0])
-        if not m or m.group(1) != want:
-            bad[sel] = (m.group(1) if m else None, want)
+        got = _radius_of(sel)
+        if got != want:
+            bad[sel] = (got, want)
     assert not bad, f"圆角档位不合规（实际, 期望）：{bad}"
 
 

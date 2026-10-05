@@ -32,6 +32,24 @@ def src():
     return PAGE.read_text(encoding="utf-8")
 
 
+def _body(src):
+    """<body> 之后的全部行为代码 —— 含被外置出去的那几段脚本。
+
+    2026-10-04 站点仓库 954f720 把 7 个下载页的内联 <script> 原位换成
+    <script src="./app-N.js">，因为 CSP 的 script-src 去掉了 unsafe-inline
+    （机理见 Voyra 说明 §11.2）。本文件当时只读 index.html，于是"进度条没接进
+    滚动帧""镜像按钮不受清单控制""体积读数写法换了"三条一起变成假失败 ——
+    代码一行没少，只是搬了个文件。断言必须跟着真正会跑起来的那份读。
+    """
+    tail = src[src.index("<body>"):]
+    extra = []
+    for name in sorted(set(re.findall(r'src="\./([\w.-]+\.js)"', src))):
+        f = PAGE.parent / name
+        if f.exists():
+            extra.append(f.read_text(encoding="utf-8"))
+    return tail + "\n" + "\n".join(extra)
+
+
 def _style_block(text):
     m = re.search(r"<style>(.*?)</style>", text, re.S)
     assert m, "页里没有 <style> 块"
@@ -77,7 +95,7 @@ def test_section_rhythm_comes_from_tokens(src):
 
 
 def test_mirror_button_is_manifest_gated(src):
-    body = src[src.index("<body>"):]
+    body = _body(src)
     assert 'id="dlGithub"' in body, "镜像按钮没了"
     m = re.search(r'<a[^>]*id="dlGithub"[^>]*>', body)
     assert " hidden" in m.group(0), "镜像按钮默认就该藏着"
@@ -93,7 +111,7 @@ def test_numeric_readouts_stay_put(src):
     assert re.search(r"\.pill \.ver,\.hero-note b,\.sha,\.foot \.en\{"
                      r"font-variant-numeric:tabular-nums\}", css), \
         "等宽数字那条规则没了：清单 fetch 回来时版本号会把版面推一下"
-    body = src[src.index("<body>"):]
+    body = _body(src)
     assert "d.size/1048576).toFixed(1)" in body, \
         "体积又取整了：兜底值 36.2 MB 和 fetch 后的 36 MB 会显示成两个数"
 
@@ -101,7 +119,7 @@ def test_numeric_readouts_stay_put(src):
 def test_nav_progress_line_is_transform_driven(src):
     css = _style_block(src)
     assert re.search(r"\.nav-progress\{[^}]*transform:scaleX\(0\)", css), "进度条样式没走 transform"
-    body = src[src.index("<body>"):]
+    body = _body(src)
     assert 'id="navProgress"' in body, "进度条节点没了"
     assert "function applyProgress()" in body
     assert re.search(r"function update\(\)\{[^}]*applyProgress\(\)", body), "进度条没接进滚动帧"
@@ -166,7 +184,7 @@ def test_hover_only_motion_is_gated_off_for_touch(src):
     css = _style_block(src)
     assert "--mx" in css and "--my" in css, "柔光圆心不再是自定义量"
     assert re.search(r"\.card:hover::before,\.stage:hover::before,\.lc:hover::before\{opacity:1\}", css)
-    body = src[src.index("<body>"):]
+    body = _body(src)
     assert re.search(r"if \(REDUCED \|\| !matchMedia\('\(hover:hover\)'\)\.matches\) return;", body), \
         "柔光/扫光没在触屏与减动效档下早退"
     assert "@keyframes pillShine" in css and ".js .pill.shine::after" in css

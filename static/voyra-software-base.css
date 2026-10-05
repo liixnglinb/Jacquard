@@ -1,9 +1,19 @@
 @import './voyra-foundation.css';
 /* Shared interaction contract. App-specific adapters keep layout and business logic. */
 html body {font-family:var(--font-ui,var(--font-sans,var(--font,var(--vr-font))));text-rendering:optimizeLegibility;}
-html body :is(button,a,input,textarea,select,[tabindex]):focus-visible {
-  outline:2px solid var(--vr-ink)!important;outline-offset:3px;
+/* 焦点环分两类，不再一刀切：
+   按钮/链接/可聚焦容器 —— 必须有强对比的环，键盘用户全靠它找位置，走 --vr-ink。
+   文本框与下拉 —— 以前也吃同一条 2px --vr-ink，而暗色那档就是近白，
+   于是点进输入台会在整张卡里面再套一圈白框（用户点名的"选中对话框
+   不要旁边变成高亮"最字面的那一处），而且它带 !important，把
+   .tk-input:focus{outline:none} 直接顶死。现在文本类控件的反馈交回
+   各自的 border-color / 卡片阴影（见 test_no_input_paints_an_accent_halo_on_focus），
+   select 留一档弱环 —— 它没有自己的 :focus 样式，全撤就等于没有焦点可见性。 */
+html body :is(button,a,[tabindex]):focus-visible {
+  outline:2px solid var(--vr-ink);outline-offset:3px;
 }
+html body :is(input,textarea):focus-visible {outline:none;}
+html body select:focus-visible {outline:2px solid var(--vr-line-strong);outline-offset:1px;}
 html body :is(button,input,select,textarea) {font-family:inherit;}
 html body .sr-only {position:absolute!important;width:1px!important;height:1px!important;padding:0!important;margin:-1px!important;overflow:hidden!important;clip:rect(0,0,0,0)!important;white-space:nowrap!important;border:0!important;}
 html body :is(.btn,.button,.field-input,.form-input,.input-field) {

@@ -1,31 +1,51 @@
 @import './voyra-software-base.css';
-/* Jacquard · execution workspace; no sandbox or pipeline changes. */
-:root,:root[data-theme='dark'] {
-  --bg-page:var(--vr-canvas);--bg-shell:var(--vr-surface-soft);--bg-raised:var(--vr-surface);--bg-sunken:var(--vr-surface-soft);--bg-inset:var(--vr-surface-soft);
-  --bg-hover:var(--vr-surface-hover);--bg-active:var(--vr-brand-soft);--bg-composer:var(--vr-surface);--bg-strip:var(--vr-surface-soft);--bg-pill:var(--vr-surface-soft);
-  --bg-float:var(--vr-surface);--bg-panel:var(--vr-surface);--bg-ctl:var(--vr-surface);--line-panel:var(--vr-line);
-  --ink:var(--vr-ink);--ink-2:var(--vr-body);--ink-3:var(--vr-muted);--ink-4:var(--vr-muted);--ink-inv:var(--vr-surface);
-  --line:var(--vr-line);--line-soft:var(--vr-line);--line-strong:var(--vr-line-strong);
-  --accent:var(--vr-ink);--accent-deep:var(--vr-body);--accent-soft:var(--vr-brand-soft);--accent-line:var(--vr-line-strong);--on-accent:var(--vr-surface);
-  --font-ui:var(--vr-font);--font-sans:var(--vr-font);--font-mono:var(--vr-mono);
-  --r-2:8px;--r-3:12px;--r-4:12px;
+/* Jacquard · 执行工作台；不动沙箱与流水线语义。
+ *
+ * 2026-10-05：这里原本挂着一整块 :root 覆盖，把 style.css 的 --bg 系列、
+ * --ink 系列、--line 系列重新映射到 --vr 系列。那是"影子调色板"的成因
+ * —— style.css 写 slate、这一层写橄榄，
+ * 而 tests/test_static_contract.py 只读 style.css，于是 1.2.9 全绿上线了一套
+ * 界面上根本不存在的颜色，并把上一轮实测过的侧栏亮度/分栏线一起盖掉。
+ * 现在调色板只有 style.css 一处；voyra-foundation.css 的 --vr-* 只服务
+ * voyra-software-base.css 那条交互契约，两边相等由测试钉住，不再靠加载次序。
+ */
+
+/* 半径跟着 --r-* 走，不再写死 12px。写死的那版把 --r-3 和 --r-4 压成同一档
+   （style.css 里 .tk-card 明明要的是 --r-5，被这里盖成 12），卡里嵌的东西和卡
+   本身一样圆 —— 那是这一版读起来廉价的主要单一来源。四张壳都落在 --r-4：
+   输入台壳的圆角是按参考图像素量的 12，见 NESTED_RADIUS 的注释。 */
+.tk-card, .sc-card, .pv-card, .st-card {
+  border-radius:var(--r-4);
+  border-color:var(--line); background:var(--bg-surface); box-shadow:var(--shadow-sm);
 }
-.tk-card,.sc-card,.pv-card,.st-card {border-radius:12px;border-color:var(--vr-line);background:var(--vr-surface);box-shadow:var(--vr-shadow);}
-.st-note,.st-nodata span {color:var(--vr-muted);}
-.pv-input,.st-search {border-radius:8px;}
-.sb-nav .active {background:var(--vr-brand-soft);}
-.sb-name {color:var(--vr-ink);}
-.log,.code-view,.artifact-path {font-family:var(--vr-mono);}
-.workspace-state {display:flex;align-items:center;gap:20px;border:1px solid var(--vr-danger);background:var(--vr-danger-soft);border-radius:12px;margin:20px 24px;padding:16px 20px;color:var(--vr-body);}
-.workspace-state[hidden] {display:none;}
-.workspace-state>div {flex:1;min-width:0;}
-.workspace-state strong {font-size:14px;color:var(--vr-ink);}
-.workspace-state p {margin:5px 0;font-size:13px;line-height:1.7;}
-.workspace-state small {font-size:12px;color:var(--vr-muted);overflow-wrap:anywhere;}
-.workspace-state .btn {flex:none;}
-.pl-card-row .pl-row-main:is(a,button) {background:none;border:0;font:inherit;text-align:left;color:inherit;text-decoration:none;padding:0;cursor:pointer;min-width:0;}
-.pl-card-row {border-radius:12px;border-color:var(--vr-line);}
-.pl-row-main:is(a,button):focus-visible {outline-offset:5px!important;}
-.modal-box {max-height:80dvh;}
-.sk-view-body {min-height:0;overflow:auto;}
-@media(max-width:767px){.workspace-state{flex-direction:column;align-items:stretch;margin:16px;padding:16px}.pl-row-title{flex-wrap:wrap}}
+.st-note, .st-nodata span { color:var(--ink-3); }
+.pv-input, .st-search { border-radius:var(--r-2); }
+.sb-name { color:var(--ink); }
+.log, .code-view, .artifact-path { font-family:var(--font-mono); }
+
+/* 页面读取状态条：语义色只上描边与底色，正文一律 --ink* 系墨色。 */
+.workspace-state {
+  display:flex; align-items:center; gap:var(--sp-5);
+  border:1px solid var(--st-failed); background:var(--st-failed-bg);
+  border-radius:var(--r-4); margin:var(--sp-5) var(--sp-6);
+  padding:var(--sp-4) var(--sp-5); color:var(--ink-2);
+}
+.workspace-state[hidden] { display:none; }
+.workspace-state > div { flex:1; min-width:0; }
+.workspace-state strong { font-size:var(--fs-sub); color:var(--ink); }
+.workspace-state p { margin:5px 0; font-size:var(--fs-meta); line-height:1.7; }
+.workspace-state small { font-size:var(--fs-meta); color:var(--ink-3); overflow-wrap:anywhere; }
+.workspace-state .btn { flex:none; }
+
+.pl-card-row .pl-row-main:is(a,button) {
+  background:none; border:0; font:inherit; text-align:left; color:inherit;
+  text-decoration:none; padding:0; cursor:pointer; min-width:0;
+}
+.pl-card-row { border-radius:var(--r-4); border-color:var(--line); }
+.pl-row-main:is(a,button):focus-visible { outline-offset:5px !important; }
+.modal-box { max-height:80dvh; }
+.sk-view-body { min-height:0; overflow:auto; }
+@media (max-width:767px) {
+  .workspace-state { flex-direction:column; align-items:stretch; margin:var(--sp-4); padding:var(--sp-4) }
+  .pl-row-title { flex-wrap:wrap }
+}

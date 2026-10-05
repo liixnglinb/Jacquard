@@ -1,20 +1,29 @@
-/* Voyra UI foundation v1 · offline-safe · website and five apps. */
+/* Voyra UI foundation v1 · offline-safe · website and five apps.
+   2026-10-05 表面层去彩：这一族的 canvas / surface 系列 / line 系列原先带黄褐偏
+   （#191a18 的 R-B=+1、brand-soft #373021 的 R-B=+22），压在金色强调上
+   会把中性档一起染脏，选中态那块尤其明显。现在表面、线、墨全部走真中性（R=G=B），
+   彩色只留给 brand 与语义色。style.css 的 bg / ink / line 系列与本块
+   逐值相等，由 tests/test_static_contract.py 钉住，不再允许两层各写一套。 */
 :root {
   --vr-font: "Segoe UI Variable Text", "Inter", "Segoe UI", "Microsoft YaHei UI", "PingFang SC", system-ui, sans-serif;
   --vr-mono: "Cascadia Mono", "SFMono-Regular", Consolas, monospace;
-  --vr-canvas: #f6f5f1;
+  --vr-canvas: #f7f7f7;
   --vr-surface: #ffffff;
-  --vr-surface-soft: #efeee9;
-  --vr-surface-hover: #e9e7df;
-  --vr-ink: #20211f;
-  --vr-body: #454740;
-  --vr-muted: #696b62;
-  --vr-line: #dddcd4;
-  --vr-line-strong: #b5b6aa;
+  --vr-surface-soft: #e4e4e4;
+  --vr-surface-hover: #dbdbdb;
+  --vr-surface-active: #cfcfcf;
+  --vr-surface-raised: #ffffff;
+  --vr-ink: #1a1a1a;
+  --vr-ink-hover: #3a3a3a;
+  --vr-body: #454545;
+  --vr-muted: #6f6f6f;
+  --vr-faint: #9a9a9a;
+  --vr-line: #dedede;
+  --vr-line-strong: #a8a8a8;
   --vr-brand: #80651c;
   --vr-brand-hover: #654e13;
   --vr-highlight: #ffe08a;
-  --vr-brand-soft: #f9f0d4;
+  --vr-brand-soft: #f4ead2;
   --vr-success: #167247;
   --vr-success-soft: #e6f3e9;
   --vr-warning: #8b5a0a;
@@ -35,8 +44,13 @@
   --vr-space-6: 24px;
   --vr-space-8: 32px;
   --vr-space-10: 40px;
-  --vr-control-sm: 32px;
-  --vr-control: 40px;
+  /* 控件档位对齐本软件自己写的那一套（.btn 34 / .btn-sm 28 / 圆角走 --r-2 6px）。
+     覆盖层的选择器 html body :is(.btn,…) 比 .btn 更具体，所以这两档一旦和
+     style.css 不一致，界面上就是这里说的值、注释里说的那个值，两边都以为
+     自己生效。触屏那档仍 44px（base 里的 @media(pointer:coarse)），
+     桌面不必为指头多付 6px 行高。 */
+  --vr-control-sm: 28px;
+  --vr-control: 34px;
   --vr-control-touch: 44px;
   --vr-text-caption: 12px;
   --vr-text-body: 14px;
@@ -44,8 +58,8 @@
   --vr-text-display: 32px;
   --vr-shadow: 0 2px 4px #20211f04, 0 16px 40px -28px #20211f40;
   --vr-shadow-hover: 0 4px 8px #20211f05, 0 24px 48px -24px #20211f30;
-  --vr-duration-fast: 120ms;
-  --vr-duration: 200ms;
+  --vr-duration-fast: 140ms;
+  --vr-duration: 220ms;
   --vr-duration-enter: 360ms;
   --vr-ease: cubic-bezier(.2,.8,.2,1);
   --vr-z-header: 20;
@@ -54,28 +68,36 @@
   --vr-z-toast: 80;
 }
 :root[data-theme="dark"], :root[data-voyra-theme="dark"] {
-  --vr-canvas: #191a18;
-  --vr-surface: #232420;
-  --vr-surface-soft: #2c2d28;
-  --vr-surface-hover: #34352e;
-  --vr-ink: #eeeee7;
-  --vr-body: #cbccc2;
-  --vr-muted: #a7a99e;
-  --vr-line: #3e4036;
-  --vr-line-strong: #7e8172;
+  /* 逐值取自参考图取色：画布 #191B1A、标题栏与侧栏 #242624、卡片 #1F2120、
+     卡内格子 #2E332E、那条 1px 缝 #373C37。四对都有 G>R=B 的绿偏，
+     这里保留它们的明度关系、把色相拉平（ΔL* 侧栏对画布 = 7.1，
+     比参考图自己的 5.4 宽一档，因为本项目还要靠色差而不是靠线撑分栏）。 */
+  --vr-canvas: #1a1a1a;
+  --vr-surface: #222222;
+  --vr-surface-soft: #2a2a2a;
+  --vr-surface-hover: #343434;
+  --vr-surface-active: #3d3d3d;
+  --vr-surface-raised: #333333;
+  --vr-ink: #f2f2f2;
+  --vr-ink-hover: #cfcfcf;
+  --vr-body: #c6c6c6;
+  --vr-muted: #8c8c8c;
+  --vr-faint: #6e6e6e;
+  --vr-line: #3c3c3c;
+  --vr-line-strong: #585858;
   --vr-brand: #e3c878;
   --vr-brand-hover: #f6df9b;
-  --vr-brand-soft: #373021;
+  --vr-brand-soft: #2b2517;
   --vr-success: #81d6a3;
-  --vr-success-soft: #20392a;
+  --vr-success-soft: #1d2f24;
   --vr-warning: #efc574;
-  --vr-warning-soft: #3b301d;
+  --vr-warning-soft: #322a1a;
   --vr-danger: #f69993;
-  --vr-danger-soft: #432826;
+  --vr-danger-soft: #3a2422;
   --vr-info: #a4bcf4;
-  --vr-info-soft: #273449;
-  --vr-shadow: 0 12px 32px -22px #0009;
-  --vr-shadow-hover: 0 20px 40px -20px #0009;
+  --vr-info-soft: #222c3d;
+  --vr-shadow: 0 12px 32px -22px #000b;
+  --vr-shadow-hover: 0 20px 40px -20px #000b;
 }
 @media (prefers-reduced-motion: reduce) {
   :root { --vr-duration-fast: 0ms; --vr-duration: 0ms; --vr-duration-enter: 0ms; }

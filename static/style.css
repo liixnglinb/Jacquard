@@ -19,33 +19,41 @@
 :root{
   color-scheme: light;
 
-  /* ---------------- 色彩：亮色主题 ---------------- */
-  --bg-page:#F6F7F9;
-  /* 有意偏离 v11 方案给的 #ECEEF2：它与 --bg-page 的 ΔL* 只有 3.2，而本项目
-     量出来的分栏下限是 6.0（暗色那对曾达 10.3）。方案自己也把「亮色侧栏与主区
-     缺少结构节奏」列为 P2 问题，照搬等于不解决它。改取同色系的 slate-200
-     #DDE3EC，ΔL* ≈ 7.2，既满足门槛又留在 v11 的冷灰家族里。
-     （依据 Voyra 说明 §0.9.3：方案色值不达无障碍/可辨标准时上调变量并在注释里写明） */
-  --bg-shell:#DDE3EC;
+  /* ---------------- 色彩：亮色主题 ----------------
+     与 static/voyra-foundation.css 的 --vr-* 逐值相等（那条等式由
+     test_the_two_palette_layers_agree 钉住）。以前这两层各写一套：
+     style.css 是冷 slate、voyra-ui.css 覆盖成橄榄，测试只读 style.css，
+     于是 1.2.9 那版"全绿上线"了一个界面上根本不存在的调色板。 */
+  --bg-page:#F7F7F7;
+  /* 侧栏与页面的分栏判据是 CIE ΔL*，亮色下限 6.0：#F7F7F6(97.3) 对
+     #E5E5E2(90.9) 到 6.4。以前这里吃过 v11 方案给的 #ECEEF2（ΔL* 3.2，
+     看不出分栏），也吃过 slate-200 #DDE3EC（够 7.2 但带蓝，压不住金）。 */
+  --bg-shell:#E4E4E4;
   --bg-surface:#FFFFFF;
   --bg-raised:#FFFFFF;
-  --bg-sunken:rgba(15,23,42,.04);
-  --bg-active:rgba(15,23,42,.08);
-  --bg-hover:rgba(15,23,42,.05);
+  --bg-sunken:#EFEFEF;
+  --bg-active:#CFCFCF;
+  --bg-hover:#DBDBDB;
   --bg-float:#FFFFFF;
 
-  --ink:#0F172A;
-  --ink-2:#334155;
-  --ink-3:#64748B;
-  --ink-4:#94A3B8;
+  --ink:#1A1A1A;
+  --ink-2:#454545;
+  --ink-3:#6F6F6F;
+  --ink-4:#9A9A9A;
   --ink-inv:#FFFFFF;
 
-  --line-soft:rgba(15,23,42,.06);
-  --line:rgba(15,23,42,.12);
-  --line-strong:rgba(15,23,42,.24);
+  --line-soft:#EAEAEA;
+  --line:#DEDEDE;
+  --line-strong:#A8A8A8;
 
-  --btn-ink:#0F172A;
-  --btn-ink-hover:#1E293B;
+  --btn-ink:#1A1A1A;
+  --btn-ink-hover:#3A3A3A;
+
+  /* 全站唯一的"有颜色"的口音：金。品牌位是黑白反转（--btn-ink），
+     但选中项的图标、计数徽标、活动点这些"要认得出是织流"的地方吃这一档。
+     与 voyra-foundation.css 的 --vr-brand 逐值相等，由测试钉住。 */
+  --brand:#80651C;
+  --brand-soft:#F4EAD2;
 
   /* ---------------- 语义状态色（流水线专用） ----------------
      只用于色块 / 描边 / 图标 / 状态点；承载小字的场合一律用 --ink* 系墨色，
@@ -58,7 +66,11 @@
   --st-cancelled:#475569; --st-cancelled-bg:rgba(71,85,105,.12);
   --st-revising:#7C3AED;  --st-revising-bg:rgba(124,58,237,.12);
 
-  /* ---------------- 圆角梯度（依嵌套层级严格约束） ---------------- */
+  /* ---------------- 圆角梯度（依嵌套层级严格约束） ----------------
+     档位本身是量出来的，别动（NESTED_RADIUS 那张表逐条对着参考图像素）。
+     这一版曾经只有 r-1/r-2/r-5 三档在动，r-3 与 r-4 被 voyra-ui.css 一起压成
+     12px —— "卡里嵌的东西和卡本身一样圆"就是这么来的，是覆盖层的事故，
+     不是梯子取值错了。覆盖层已删，五档重新分开。 */
   --r-1:4px;   /* 内嵌标签、微型按钮 */
   --r-2:6px;   /* 菜单项、常规输入框、小按钮 */
   --r-3:8px;   /* 下拉浮层、卡片内嵌模块、图标按钮 */
@@ -73,33 +85,45 @@
   /* ---------------- 字体排印阶梯 ---------------- */
   --text-scale:1;
   --font-ui:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+  --font-sans:var(--font-ui);
   --font-mono:"JetBrains Mono","Cascadia Code","Fira Code",Consolas,monospace;
 
   /* 八档字号：1rem = 14px（受 html{font-size:calc(14px * var(--text-scale))} 缩放）。
      这是全站唯一允许用 rem 的地方 —— 几何一律 px，否则选「特大」会把图标和间距
-     一起放大，和「界面缩放」的职责重叠。 */
-  --fs-micro:.72rem;    /* 10.1 */
+     一起放大，和「界面缩放」的职责重叠。
+     2026-10-05 只动两端：micro 从 10.1 抬到 11.2 —— 它是十阶段芯片、计数徽标和
+     Ctrl N 那几处唯一的字号，10px 的中文根本读不动；stat 从 18.1 抬到 22.0 ——
+     这条刻度自己的注释写着"统计条那排数字字高 ≈20px"，而 18px 字号只给得出
+     13px 字高，一直在报一个界面上不存在的读数。中间五档不动。 */
+  --fs-micro:.80rem;    /* 11.2 */
   --fs-meta:.86rem;     /* 12.0 */
   --fs-sub:.93rem;      /* 13.0 */
   --fs-body:1rem;       /* 14.0 */
   --fs-lead:1.14rem;    /* 16.0 */
-  --fs-stat:1.29rem;    /* 18.0 */
+  --fs-stat:1.57rem;    /* 22.0 */
   --fs-h2:1.43rem;      /* 20.0 */
   --fs-h1:1.93rem;      /* 27.0 */
 
-  /* ---------------- 阴影与深度 ---------------- */
-  --shadow-sm:0 1px 2px 0 rgba(0,0,0,.05);
-  --shadow-md:0 4px 6px -1px rgba(0,0,0,.08),0 2px 4px -2px rgba(0,0,0,.04);
-  --shadow-pop:0 12px 24px -4px rgba(0,0,0,.12),0 4px 8px -2px rgba(0,0,0,.06);
+  /* ---------------- 阴影与深度 ----------------
+     大模糊低透明度：静置态几乎看不见（分栏和卡片靠色差与 1px 边表达，
+     不靠投影），只在悬停/聚焦/浮层这三档才抬起来。以前 --shadow-md 是
+     tailwind 那组 4px/6px 的值，压在 14px 圆角的卡上像贴了张硬纸片。 */
+  --shadow-sm:0 1px 1px 0 rgba(0,0,0,.04);
+  --shadow-md:0 10px 24px -12px rgba(0,0,0,.18),0 2px 6px -2px rgba(0,0,0,.08);
+  --shadow-pop:0 24px 48px -16px rgba(0,0,0,.28),0 6px 16px -8px rgba(0,0,0,.16);
 
   /* ---------------- 层叠上下文 ---------------- */
   --z-sticky:10; --z-proc:40; --z-composer:50; --z-mask:80;
   --z-modal:90; --z-toast:100; --z-menu:110; --z-tip:120;
 
-  /* ---------------- 动效基准 ---------------- */
-  --ease:cubic-bezier(.16,1,.3,1);
-  --dur-fast:120ms;
-  --dur-base:180ms;
+  /* ---------------- 动效基准 ----------------
+     一条曲线一档节奏。以前 --ease 是 cubic-bezier(.16,1,.3,1)、
+     voyra-foundation.css 的 --vr-ease 是 (.2,.8,.2,1)，两批动画同时在跑，
+     侧栏宽度和它内部的对齐就永远错开半帧。--dur-base 同时是"折叠一次"的
+     时长（180ms 量着像掉了帧，220ms 才跟得上眼睛）。 */
+  --ease:cubic-bezier(.2,.8,.2,1);
+  --dur-fast:140ms;
+  --dur-base:220ms;
 
   --titlebar-h:38px;
   --sidebar-w:224px;
@@ -120,7 +144,10 @@
   --line-panel:var(--line);
   --accent:var(--btn-ink);
   --accent-deep:var(--btn-ink-hover);
-  --accent-soft:var(--st-running-bg);
+  /* 强调色的弱底吃金，不吃 --st-running-bg（蓝）：品牌位是黑白反转，
+     但选中文字、内嵌徽标这类"要有一点颜色"的场合，全站只有金色一个口音。
+     以前这一条被 voyra-ui.css 覆盖成 --vr-brand-soft 才碰巧对，现在写在本处。 */
+  --accent-soft:var(--brand-soft);
   --accent-line:var(--line-strong);
   --on-accent:var(--ink-inv);
   --on-solid:#FFFFFF;
@@ -139,35 +166,43 @@
 
   /* 明暗磁贴要显示「另一个主题长什么样」，不能跟着当前主题走，
      所以这几个色值固定写在 :root，故意不随 html[data-theme] 变。 */
-  --sw-lite-bg:#F6F7F9;  --sw-lite-line:#DCDCDC;
-  --sw-dark-bg:#1F1F1F;  --sw-dark-line:#3A3A3A;
+  --sw-lite-bg:#F7F7F7;  --sw-lite-line:#DEDEDE;
+  --sw-dark-bg:#1A1A1A;  --sw-dark-line:#3C3C3C;
 }
 
 /* ---------------- 色彩：暗色主题 ---------------- */
 html[data-theme="dark"]{
   color-scheme: dark;
 
-  --bg-page:#121316;
-  --bg-shell:#18191D;
-  --bg-surface:#1E2025;
-  --bg-raised:#24262D;
-  --bg-sunken:rgba(255,255,255,.04);
-  --bg-active:rgba(255,255,255,.08);
-  --bg-hover:rgba(255,255,255,.05);
-  --bg-float:#242730;
+  /* 逐值等于 voyra-foundation.css 的暗色块（等式由测试钉住）。
+     参考图取到的是画布 #191B1A / 侧栏 #242624 / 卡片 #1F2120 / 卡内格 #2E332E /
+     那条 1px 缝 #373C37，四对都带 G>R=B 的绿偏；这里留明度关系、拉平色相，
+     并把侧栏对画布的 ΔL* 从参考图自己的 5.4 抬到 7.1。 */
+  --bg-page:#1A1A1A;
+  --bg-shell:#2A2A2A;
+  --bg-surface:#222222;
+  --bg-raised:#333333;
+  --bg-sunken:#2A2A2A;
+  --bg-active:#3D3D3D;
+  --bg-hover:#343434;
+  --bg-float:#333333;
 
-  --ink:#F8FAFC;
-  --ink-2:#CBD5E1;
-  --ink-3:#94A3B8;
-  --ink-4:#64748B;
-  --ink-inv:#0F172A;
+  --ink:#F2F2F2;
+  --ink-2:#C6C6C6;
+  --ink-3:#8C8C8C;
+  --ink-4:#6E6E6E;
+  --ink-inv:#222222;
 
-  --line-soft:rgba(255,255,255,.06);
-  --line:rgba(255,255,255,.12);
-  --line-strong:rgba(255,255,255,.22);
+  /* 三档分隔线取实心而不是白色半透明：参考图那条缝在侧栏边和卡片边上是
+     同一个 #373C37，半透明做不出这个（压在两层底上会差 5 个亮度）。 */
+  --line-soft:#2F2F2F;
+  --line:#3C3C3C;
+  --line-strong:#585858;
 
-  --btn-ink:#FFFFFF;
-  --btn-ink-hover:#E2E8F0;
+  --btn-ink:#F2F2F2;
+  --btn-ink-hover:#CFCFCF;
+  --brand:#E3C878;
+  --brand-soft:#2B2517;
 
   --st-pending:#94A3B8;   --st-pending-bg:rgba(148,163,184,.14);
   --st-running:#3B82F6;   --st-running-bg:rgba(59,130,246,.16);
@@ -177,9 +212,9 @@ html[data-theme="dark"]{
   --st-cancelled:#64748B; --st-cancelled-bg:rgba(100,116,139,.16);
   --st-revising:#8B5CF6;  --st-revising-bg:rgba(139,92,246,.16);
 
-  --shadow-sm:0 1px 2px 0 rgba(0,0,0,.35);
-  --shadow-md:0 4px 6px -1px rgba(0,0,0,.45),0 2px 4px -2px rgba(0,0,0,.3);
-  --shadow-pop:0 16px 32px -4px rgba(0,0,0,.6),0 4px 12px -2px rgba(0,0,0,.4);
+  --shadow-sm:0 1px 1px 0 rgba(0,0,0,.4);
+  --shadow-md:0 10px 24px -12px rgba(0,0,0,.7),0 2px 6px -2px rgba(0,0,0,.45);
+  --shadow-pop:0 24px 48px -16px rgba(0,0,0,.85),0 6px 16px -8px rgba(0,0,0,.6);
 
   --on-solid:#0E1512;
   --chart-1:#4D8BF7; --chart-2:#4CC77E; --chart-3:#9B87FF;
@@ -212,9 +247,14 @@ html[data-font="serif"]{ --font-ui:"Source Han Serif SC","Noto Serif CJK SC",Geo
      它自己发出来的版本没用。所以这里走 --r-4，--r-5 留给对话框壳/toast。 */
   border-radius:var(--r-4);box-shadow:var(--shadow-composer);overflow:hidden;
   transition:border-color var(--slide)}
-/* 焦点环画在卡片上，不画在 textarea 上：整张卡就是那个输入区。
-   抬到 --line-strong 正好就是实测的 #4b4b4b —— 既有可见反馈，又不引入彩色光环。 */
-.tk-card:focus-within{border-color:var(--line-strong)}
+/* 焦点反馈只抬阴影，不动描边。
+   这里以前是 border-color:var(--line-strong)（暗色实测 rgb(88,88,88)），
+   暗色 --line-strong 刚从 #7e8172 收到 #585858 也还是比正文亮 —— 整张输入台
+   外面亮起一圈边，就是用户点名的"选中对话框不要旁边变成高亮"。
+   阴影那档说的是"这张卡被端起来了"，描边变亮说的是"这张卡在发光"，要前者。
+   小的设置项输入框（.pv-input / .st-input）仍然提描边：它们只有 30px 高，
+   不提边就没有任何焦点反馈，那是另一回事。 */
+.tk-card:focus-within{box-shadow:var(--shadow-md)}
 /* 顶部条带：实测高 37（不是上一轮量的 43 —— 那张图是另一个版本）。
    .ff-sel 是 30px 高，所以上下各 4px + 1px 线 = 35+1 ≈ 37。左内缩实测 18。 */
 .tk-top{display:flex;align-items:center;gap:10px;padding:4px 14px 4px 13px;
@@ -302,12 +342,14 @@ html[data-font="serif"]{ --font-ui:"Source Han Serif SC","Noto Serif CJK SC",Geo
    色阶用 color-mix 从 --accent 推，不写死 rgba —— 换主题、换强调色都自动跟。 */
 .st-strip{display:grid;grid-template-columns:repeat(5,1fr);gap:1px;margin-bottom:19px;
   background:var(--line);border:1px solid var(--line);border-radius:var(--r-4);overflow:hidden}
-/* 参考图整条卡高量到 65px：数字行 24 + 5 + 标签行 18 + 上下各 9。
-   上下留 13 会撑到 82，那一排就比标题还高了。 */
-.st-strip>div{background:var(--bg-panel);padding:9px 10px;text-align:center}
+/* 这一条卡高随数字档走。旧注释里的 65px 是按 18px 数字量的（数字行 24 + 5 +
+   标签行 18 + 上下各 9 + 边框 2）。--fs-stat 这一档抬到 22px 之后那套算术就不成立了：
+   26.4 + 5 + 16.8 + 22 + 2 ≈ 72。标签同时从 --fs-body(14) 降到 --fs-meta(12) ——
+   数字抬到 22 之后，14px 的标签会把这一格撑成两行一样重，读数就没有主次了。 */
+.st-strip>div{background:var(--bg-panel);padding:11px 10px;text-align:center}
 .st-strip b{display:block;white-space:nowrap;font-family:var(--font-mono);font-size:var(--fs-stat);font-weight:600;
-  color:var(--ink);letter-spacing:-.01em;line-height:1.2}
-.st-strip span{display:block;margin-top:6px;font-size:var(--fs-body);line-height:1.4;color:var(--ink-3)}
+  color:var(--ink);letter-spacing:-.02em;line-height:1.2;font-variant-numeric:tabular-nums}
+.st-strip span{display:block;margin-top:5px;font-size:var(--fs-meta);line-height:1.4;color:var(--ink-3)}
 .hm-title{font-size:var(--fs-sub);font-weight:600;color:var(--ink-2)}
 /* 卡片内的标题：统计页用它替掉卡片上方那行分组标签（参考图里没有分组标签）。 */
 .st-pttl{padding:14px 18px 11px;font-size:var(--fs-sub);font-weight:600;color:var(--ink-2)}
@@ -381,7 +423,7 @@ html[data-font="serif"]{ --font-ui:"Source Han Serif SC","Noto Serif CJK SC",Geo
 .st-dmid{position:absolute;inset:0;display:flex;flex-direction:column;
   align-items:center;justify-content:center;pointer-events:none}
 .st-dmid b{font-family:var(--font-mono);font-size:var(--fs-stat);font-weight:600;
-  color:var(--ink);line-height:1.4}
+  color:var(--ink);line-height:1.4;font-variant-numeric:tabular-nums}
 .st-dmid span{font-size:var(--fs-meta);color:var(--ink-4);line-height:1.4}
 .st-mlist{display:flex;flex-direction:column;min-width:0}
 .st-mrow{display:flex;align-items:flex-start;gap:10px;padding:7px 0;
@@ -449,8 +491,10 @@ code{font-family:var(--font-mono);font-size:.92em}
 .titlebar{height:var(--titlebar-h);flex-shrink:0;display:flex;align-items:stretch;
   user-select:none;-webkit-user-select:none}
 .tlb-left{width:var(--sidebar-w);flex-shrink:0;display:flex;align-items:center;
-  background:var(--bg-shell);padding:0 8px 0 12px;transition:width var(--slide)}
-.tlb-right{flex:1;min-width:0;display:flex;align-items:center;background:var(--bg-page)}
+  background:var(--bg-shell);border-bottom:1px solid var(--line);
+  padding:0 8px 0 12px;transition:width var(--dur-base) var(--ease)}
+.tlb-right{flex:1;min-width:0;display:flex;align-items:center;background:var(--bg-page);
+  border-bottom:1px solid var(--line)}
 .tlb-drag{flex:1;min-width:0;height:100%}
 .tlb-brand{display:flex;align-items:center;gap:7px;min-width:0;
   font-size:var(--fs-lead);font-weight:600;letter-spacing:-.01em;color:var(--ink)}
@@ -495,9 +539,13 @@ code{font-family:var(--font-mono);font-size:.92em}
 .sidebar{
   width:var(--sidebar-w);flex-shrink:0;display:flex;flex-direction:column;
   background:var(--bg-shell);
-  /* 没有 border-right：参考图里左右两栏之间没有任何线，分栏纯靠 #2B2B2B vs #161616
-     的色差。加线等于把已经分开的两层又糊上一道接缝。 */
-  padding:10px 8px 8px;overflow:hidden;transition:width var(--slide)
+  /* 分栏靠色差（暗色 #2A2A2A 对 #1A1A1A，ΔL* 7.1），这条 1px 边只是那道缝的
+     收口。2026-10-05 逐像素取参考图重测：侧栏与画布之间确实有一个单像素的
+     #373C37，卡片顶边也是同一个值 —— 以前这里写着"参考图里两栏之间没有任何线"，
+     那条结论来自另一张图，量下来是错的。用 --line 而不是 --line-soft：
+     半透明白压在侧栏底和卡片底上会差出 5 个亮度，做不出"同一个缝色"。 */
+  border-right:1px solid var(--line);
+  padding:10px 8px 8px;overflow:hidden;transition:width var(--dur-base) var(--ease)
 }
 .sb-badge{position:absolute;top:1px;right:1px;min-width:14px;height:14px;padding:0 3px;border-radius:var(--r-pill);
   background:var(--accent);color:var(--on-accent);font-size:var(--fs-micro);font-weight:700;line-height:14px;
@@ -508,7 +556,9 @@ code{font-family:var(--font-mono);font-size:.92em}
   /* 18 + 上下各 1px 边框 = 20 = 行的 line-box。不钉这一条，这个带边框的小标签
      会把整行撑到 22.3px，行距从量到的 33 漂成 35。 */
   line-height:18px;
-  color:var(--ink-4);border:1px solid var(--line-panel);border-radius:var(--r-1);padding:0 5px}
+  /* 边框不能撤：这一档底色就是侧栏色（--bg-sunken 与 --bg-shell 同值），
+     只铺底不描边等于把 Ctrl N 印在侧栏上，一点边界都没有。 */
+  color:var(--ink-4);border:1px solid var(--line);border-radius:var(--r-1);padding:0 5px}
 .sb-nav{display:flex;flex-direction:column;gap:1px;margin-top:2px}
 /* 同一套样式要能同时穿在 <a>（路由）和 <button>（动作）上，所以把按钮的
    UA 默认值抹掉：不写 border/background 就是两条灰边和一个凸起底色，
@@ -520,10 +570,13 @@ code{font-family:var(--font-mono);font-size:.92em}
   font-size:var(--fs-body);color:var(--ink);cursor:pointer;position:relative;white-space:nowrap;
   transition:background var(--slide),color var(--slide)}
 .sb-item .ic{color:var(--ink);width:16.25px;height:16.25px;transition:color var(--slide)}
-.sb-item:hover{background:var(--bg-active);color:var(--ink)}
+/* hover 和 active 以前吃同一个 --bg-active —— 鼠标划过哪行,哪行就变成"当前所在",
+   这是用户点名"选中对话框不要旁边变成高亮"的那一条的两半里的一半。
+   现在两档分开：hover 只提亮一档底色，active 再重一档 + 加字重 + 图标上色。 */
+.sb-item:hover{background:var(--bg-hover);color:var(--ink)}
 .sb-item:hover .ic{color:var(--ink)}
 .sb-item.active{background:var(--bg-active);color:var(--ink);font-weight:600}
-.sb-item.active .ic{color:var(--accent)}
+.sb-item.active .ic{color:var(--brand)}
 
 .sb-group{display:flex;align-items:center;gap:6px;padding:16px 9px 5px;font-size:var(--fs-meta);font-weight:600;
   color:var(--ink-4);letter-spacing:.03em}
@@ -531,10 +584,13 @@ code{font-family:var(--font-mono);font-size:.92em}
 .sb-gadd{display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;margin-left:auto;
   border:none;border-radius:var(--r-1);background:transparent;color:var(--ink-4);cursor:pointer;
   transition:background var(--slide),color var(--slide)}
-.sb-gadd:hover{background:var(--bg-active);color:var(--ink)}
+.sb-gadd:hover{background:var(--bg-hover);color:var(--ink)}
 .sb-gadd .ic{width:12.35px;height:12.35px;stroke-width:2}
-.sb-gcount{margin-left:auto;font-family:var(--font-mono);font-size:var(--fs-micro);color:var(--accent);
-  background:var(--accent-soft);border-radius:var(--r-pill);padding:1px 6px}
+/* 项目计数徽标：--accent 在暗色下就是近白（品牌位是黑白反转），压在金弱底上
+   等于白字底下一片暖灰、数字读不出来。计数是"有颜色的那类文字"，走 --brand。 */
+.sb-gcount{margin-left:auto;font-family:var(--font-mono);font-size:var(--fs-micro);color:var(--brand);
+  background:var(--accent-soft);border-radius:var(--r-pill);padding:1px 6px;
+  font-variant-numeric:tabular-nums}
 
 .sb-run{display:flex;align-items:center;gap:8px;padding:6px 9px;border-radius:var(--r-2);
   /* 项目行是 60% 那一档（实测 #909090），和上面导航项的满亮度标签不是一层：
@@ -547,10 +603,12 @@ code{font-family:var(--font-mono);font-size:.92em}
   color:var(--ink-4)}
 .sb-rico .ic{width:14.625px;height:14.625px}
 .sb-rname{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis}
-/* 项目行下面挂的最近运行：参考实现用一条左边框轨道缩进
-   （workspace-grouped-tasks/types.ts:35-47 的 ml-4 border-l pl-2），不是再堆一层 padding。
-   轨道色用最淡的那档分隔线，免得比行本身还抢眼。 */
-.sb-runlist{margin-left:12px;padding-left:8px;border-left:1px solid var(--line-soft)}
+/* 项目行下面挂的最近运行：只缩进，不再画轨道。
+   旧注释引的是参考实现的 ml-4 border-l pl-2，但 2026-10-05 逐像素扫那张图，
+   嵌套行左边从 x=50 到 x=300 一路都是同一个 #242624，没有任何一列是缝色 ——
+   那条左边框在人家那里是缩进辅助线，不是界面元素。留着它反而让"项目 → 任务"
+   看起来像被一根杆子拴住，而杆子的颜色比任务文字还稳。 */
+.sb-runlist{margin-left:12px;padding-left:8px}
 .sb-sub{padding:4px 8px;font-size:var(--fs-sub)}
 .sb-sub .sb-rico,.sb-sub .sb-rico .ic{width:12px}
 .sb-sub .sb-rico .ic{height:12px}
@@ -584,8 +642,10 @@ code{font-family:var(--font-mono);font-size:.92em}
 .sb-idle{color:var(--ink-3)}
 .sb-empty{padding:6px 9px;font-size:var(--fs-sub);color:var(--ink-3)}
 
-.sb-foot{display:flex;align-items:center;gap:6px;padding:8px 6px 2px;margin-top:6px;
-  border-top:1px solid var(--line-soft);font-size:var(--fs-meta);color:var(--ink-3)}
+/* 页脚那行不再压一条 --line-soft 横线：逐像素扫参考图，侧栏从顶到底一列
+   都是同一个 #242624，账号行上方是靠 26px 的空隙分开的，不是靠线。 */
+.sb-foot{display:flex;align-items:center;gap:6px;padding:14px 6px 2px;margin-top:20px;
+  font-size:var(--fs-meta);color:var(--ink-3)}
 .sb-foot .ic{width:14.625px;height:14.625px}
 .sb-me{display:flex;align-items:center;gap:8px;flex:1;min-width:0;height:34px;padding:0 7px;
   border:none;border-radius:var(--r-2);background:transparent;color:var(--ink-2);cursor:pointer;
@@ -706,25 +766,40 @@ body.up-on .up-card{opacity:1;transform:translate(-50%,-50%);pointer-events:auto
 /* ---------- 侧栏折叠成图标轨道 ----------
    ≤860px 侧栏本来就横过来了，折叠态在那儿没意义，所以整块锁在宽屏。
    隐藏的是文字标签，含义靠 data-tip 补：新增一种侧栏行记得两头都补。 */
+/* 展开态先把过渡挂上，折叠那条规则改的才是"值"而不是"显示与否"。
+   max-width 必须给一个**具体**的起点：从 none 收到 0 是不可插值的，
+   那样标签会在第一帧直接消失（正是这一条要修的毛病）。168 = 224 侧栏
+   减去左右内边距与图标列，比这更长的名字本来就先被省略号截掉了。
+   .sb-rtag 自己带 max-width:64px，不并进这条，只补同一条 transition。 */
+.sb-name, .sb-item span, .sb-group>span, .sb-gcount, .sb-rname,
+.sb-me-name, .sb-up-tx{
+  max-width:168px;overflow:hidden;
+  transition:max-width var(--dur-base) var(--ease),opacity var(--dur-fast) linear}
+.sb-rtag{transition:max-width var(--dur-base) var(--ease),opacity var(--dur-fast) linear}
 @media (min-width:861px){
   html[data-sidebar="collapsed"]{--sidebar-w:var(--rail-w)}
   html[data-sidebar="collapsed"] .sidebar{padding:10px 6px 8px}
   /* 标题行左段跟着 --sidebar-w 一起缩，品牌名由下面那条 .sb-name 藏掉；
      这里只把左内边距改成居中（原来 12px 的左缩进在 56px 轨道里会把标识推歪）。 */
   html[data-sidebar="collapsed"] .tlb-left{padding:0;justify-content:center}
+  /* 图标按钮和整块子列表：这些是真的不该在轨道里出现，直接撤掉。 */
+  html[data-sidebar="collapsed"] .sb-garch,
+  html[data-sidebar="collapsed"] .sb-more,
+  html[data-sidebar="collapsed"] .sb-gadd,
+  html[data-sidebar="collapsed"] .sb-empty,
+  html[data-sidebar="collapsed"] .sb-me-chev{display:none}
+  /* 文字标签不 display:none，而是收到零宽 + 淡出。
+     以前和上面共用一条 display:none：盒子还在以 220ms 收，标签却在第一帧就整排
+     消失，看上去不是"侧栏合上"而是"内容先被清空、然后框子才缩"。收宽度让文字
+     跟着盒子一起被挤掉，淡出负责收尾 —— 两段同一条曲线、同一档时长。 */
   html[data-sidebar="collapsed"] .sb-name,
   html[data-sidebar="collapsed"] .sb-item span,
   html[data-sidebar="collapsed"] .sb-group>span,
   html[data-sidebar="collapsed"] .sb-gcount,
-  html[data-sidebar="collapsed"] .sb-garch,
-  html[data-sidebar="collapsed"] .sb-more,
-  html[data-sidebar="collapsed"] .sb-gadd,
   html[data-sidebar="collapsed"] .sb-rname,
   html[data-sidebar="collapsed"] .sb-rtag,
-  html[data-sidebar="collapsed"] .sb-empty,
   html[data-sidebar="collapsed"] .sb-me-name,
-  html[data-sidebar="collapsed"] .sb-me-chev,
-  html[data-sidebar="collapsed"] .sb-up-tx{display:none}
+  html[data-sidebar="collapsed"] .sb-up-tx{max-width:0;opacity:0;margin-left:0;pointer-events:none}
   html[data-sidebar="collapsed"] .sb-up-ic{display:inline-flex}
   /* 轨道里不列嵌套的最近运行：整栏只有 56px，那些小图标既对不上父行的图标列，
      也读不出是哪条流程的 —— 在跑数量已经由顶部的铃铛报了。 */
@@ -769,19 +844,30 @@ body.up-on .up-card{opacity:1;transform:translate(-50%,-50%);pointer-events:auto
 .sect::after{content:"";flex:1;height:1px;background:var(--line-soft)}
 
 /* ---------- 按钮 ---------- */
-.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;height:30px;padding:0 13px;
-  border-radius:var(--r-2);border:1px solid transparent;font-size:var(--fs-body);font-weight:500;white-space:nowrap;
+/* ---------- 按钮 ----------
+   三档材质，各自只表达一件事：
+   primary = 实心墨底 + 落影，一屏最多一枚，是"按下就有结果"；
+   常规    = 中性填充，无边框（它有底色，再加框就是两层皮）；
+   ghost   = 只有描边，退到背景里，给"也能点但不该先看"的动作。
+   曲线统一吃 --ease：以前 transform 单独特邀一条 .16s ease，
+   和底色那条 --slide 不是同一条曲线，按下去会先顿一下再回弹。 */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;height:34px;padding:0 14px;
+  /* --r-3 而不是 --r-2：契约层（voyra-software-base.css）给 .btn 的是
+     --vr-radius-control 8px，比这条更具体，写 6px 等于写了一条不会生效的。
+     两边统一到 8 —— 34px 高的按钮配 6px 圆角看着还是方的。 */
+  border-radius:var(--r-3);border:1px solid transparent;font-size:var(--fs-body);font-weight:500;white-space:nowrap;
   cursor:pointer;user-select:none;background:var(--bg-pill);color:var(--ink-2);
-  transition:background var(--slide),color var(--slide),border-color var(--slide),transform .16s ease}
+  transition:background var(--slide),color var(--slide),border-color var(--slide),
+    box-shadow var(--slide),transform var(--slide)}
 .btn:active:not(:disabled){transform:translateY(1px)}
 .btn:disabled{opacity:.4;cursor:not-allowed}
-.btn-primary{background:var(--btn-ink);color:var(--ink-inv)}
-.btn-primary:hover:not(:disabled){background:var(--btn-ink-hover)}
+.btn-primary{background:var(--btn-ink);color:var(--ink-inv);box-shadow:var(--shadow-sm)}
+.btn-primary:hover:not(:disabled){background:var(--btn-ink-hover);box-shadow:var(--shadow-md)}
 .btn-accent{background:var(--accent);color:var(--on-accent);font-weight:600}
 .btn-accent:hover:not(:disabled){background:var(--accent-deep)}
 .btn-ghost{background:transparent;color:var(--ink-2);border-color:var(--line)}
 .btn-ghost:hover:not(:disabled){background:var(--bg-hover);color:var(--ink);border-color:var(--line-strong)}
-.btn-sm{height:26px;padding:0 10px;font-size:var(--fs-meta)}
+.btn-sm{height:28px;padding:0 10px;font-size:var(--fs-meta)}
 .btn .ic{color:currentColor;width:14.625px;height:14.625px;stroke-width:1.8}
 .btn-sm .ic{width:13px;height:13px;stroke-width:1.9}
 .btn-plus{font-weight:400;color:var(--ink-3)}
@@ -1268,7 +1354,7 @@ html[data-theme="light"] .modal{background:rgba(20,20,20,.32)}
 /* direction:rtl 是"超长路径截尾不截头"的技巧，只能给路径用。
    放在 .st-val 上会把所有值都变成 RTL 段落 —— "0 / 128"、"下载中 45%" 会被双向算法左右对调。 */
 .st-val{font-family:var(--font-mono);font-size:var(--fs-meta);letter-spacing:.01em;color:var(--ink-3);max-width:300px;
-  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-variant-numeric:tabular-nums}
 .st-val-path{direction:rtl;text-align:left}
 .st-btn{display:inline-flex;align-items:center;gap:6px;height:30px;padding:0 12px;border-radius:var(--r-2);
   border:1px solid var(--line-panel);background:var(--bg-ctl);color:var(--ink);font-size:var(--fs-meta);cursor:pointer;
@@ -1468,84 +1554,34 @@ html[data-theme="light"] .modal{background:rgba(20,20,20,.32)}
   }
 }
 
-/* ---------------- 模块 1：窗口标题栏与顶层外壳 ---------------- */
-.titlebar{height:var(--titlebar-h);display:flex;align-items:stretch;background:transparent;
-  user-select:none;-webkit-user-select:none}
-.tlb-left{width:var(--sidebar-w);flex-shrink:0;display:flex;align-items:center;
-  padding:0 var(--sp-3);background:var(--bg-shell);border-bottom:1px solid var(--line-soft);
-  transition:width var(--dur-fast) var(--ease)}
-.tlb-right{flex:1;min-width:0;display:flex;align-items:center;
-  background:var(--bg-page);border-bottom:1px solid var(--line-soft)}
-.tlb-brand{display:inline-flex;align-items:center;gap:var(--sp-2);min-width:0}
-.tlb-brand .sb-logo{width:20px;height:20px;border-radius:var(--r-1);flex-shrink:0}
-.tlb-brand .sb-name{font-size:var(--fs-sub);font-weight:600;color:var(--ink);
-  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.tlb-drag{flex:1;height:100%}
-.tlb-acts{display:flex;align-items:center;gap:2px;padding-right:var(--sp-2)}
-.tlb-win{display:flex;align-items:stretch;height:100%}
-.tlb-win[hidden]{display:none !important}
-.tlb-wb{display:inline-flex;align-items:center;justify-content:center;width:44px;height:100%;
-  border:none;background:transparent;color:var(--ink-3);cursor:pointer;
-  transition:background var(--dur-fast),color var(--dur-fast)}
-.tlb-wb:hover{background:var(--bg-hover);color:var(--ink)}
-.tlb-wb.tlb-wclose:hover{background:var(--st-failed);color:var(--ink-inv)}
-
-/* ---------------- 模块 1：侧边栏与折叠轨道 ---------------- */
-.sidebar{width:var(--sidebar-w);background:var(--bg-shell);display:flex;flex-direction:column;
-  border-right:1px solid var(--line-soft);transition:width var(--dur-fast) var(--ease)}
-.sb-scroll{flex:1;min-height:0;overflow-y:auto;padding:var(--sp-2);display:flex;
-  flex-direction:column;gap:var(--sp-2)}
-.sb-nav{display:flex;flex-direction:column;gap:2px}
-.sb-item{display:flex;align-items:center;gap:var(--sp-2);height:34px;padding:0 var(--sp-3);
-  border-radius:var(--r-2);border:none;background:transparent;color:var(--ink-2);
-  font-size:var(--fs-sub);text-decoration:none;cursor:pointer;width:100%;box-sizing:border-box;
-  transition:background var(--dur-fast),color var(--dur-fast)}
-.sb-item:hover{background:var(--bg-hover);color:var(--ink)}
-.sb-item.active{background:var(--bg-active);color:var(--ink);font-weight:600}
-.sb-item .ic{width:16px;height:16px;color:var(--ink-3);flex-shrink:0}
-.sb-item.active .ic{color:var(--btn-ink)}
-.sb-kbd{margin-left:auto;font-family:var(--font-mono);font-size:var(--fs-micro);color:var(--ink-4);
-  background:var(--bg-sunken);padding:1px 5px;border-radius:var(--r-1)}
-.sb-group{display:flex;align-items:center;justify-content:space-between;
-  padding:var(--sp-3) var(--sp-3) var(--sp-1);font-size:var(--fs-micro);font-weight:600;
-  color:var(--ink-4);letter-spacing:.04em;text-transform:uppercase}
-.sb-runlist{display:flex;flex-direction:column;gap:2px;margin-left:var(--sp-3);
-  padding-left:var(--sp-2);border-left:1px solid var(--line-soft)}
-.sb-sub{height:28px;padding:0 var(--sp-2);font-size:var(--fs-meta)}
-.sb-sub .sb-rtag{margin-left:auto;font-family:var(--font-mono);font-size:var(--fs-micro);color:var(--ink-4)}
-.sb-foot{display:flex;align-items:center;gap:var(--sp-2);padding:var(--sp-2) var(--sp-3);
-  border-top:1px solid var(--line-soft)}
-.sb-me{display:flex;align-items:center;gap:var(--sp-2);flex:1;min-width:0;height:32px;
-  padding:0 var(--sp-2);border-radius:var(--r-2);border:none;background:transparent;
-  color:var(--ink-2);font-size:var(--fs-meta);cursor:pointer}
-.sb-me:hover{background:var(--bg-hover);color:var(--ink)}
-.sb-me-av{width:18px;height:18px;border-radius:var(--r-1);background:var(--bg-sunken);
-  display:flex;align-items:center;justify-content:center;font-size:var(--fs-micro);font-weight:700}
-.sb-me-name{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:left}
-
-html[data-sidebar="collapsed"]{--sidebar-w:var(--rail-w)}
-html[data-sidebar="collapsed"] .sb-name,
-html[data-sidebar="collapsed"] .sb-kbd,
-html[data-sidebar="collapsed"] .sb-group,
-html[data-sidebar="collapsed"] .sb-runlist,
-html[data-sidebar="collapsed"] .sb-me-name,
-html[data-sidebar="collapsed"] .sb-me-chev,
-html[data-sidebar="collapsed"] .sb-item span{display:none !important}
-html[data-sidebar="collapsed"] .tlb-left{justify-content:center;padding:0}
-html[data-sidebar="collapsed"] .sb-item{justify-content:center;padding:0}
-html[data-sidebar="collapsed"] .sb-me{justify-content:center;padding:0}
+/* ---------------- 模块 1：窗口标题栏与顶层外壳 ----------------
+   2026-10-05 删掉了本段原有的 66 行重复声明。上面 470-640 那段旧壳样式已经
+   把 .titlebar / .tlb-* / .sidebar / .sb-* 全套过了一遍，并且是带着逐像素
+   实测注释过的；这一段用同样的选择器把它们重新声明了一遍（分栏线、行高 34px、
+   字号 --fs-sub、静止色 --ink-2、hover 与 active 同色），按 CSS 次序自然盖掉了
+   旧段。契约测试用 CSS.split(sel)[1] 取第一条命中，于是它一直在给已经不起作用
+   的那份把脉 —— 1.2.9 就是这么全绿上线的。这里只留一条指针，不再有两份真相。
+   ---------------------------------------------------------------- */
 
 /* ---------------- 模块 2：首页输入台与十阶段芯片 ---------------- */
 .home-stage{width:min(760px,94vw);max-width:none;margin:var(--sp-6) auto;padding:0 var(--sp-4) var(--sp-8);
   display:flex;flex-direction:column;gap:var(--sp-6);box-sizing:border-box}
 .tk-greet-row{display:flex;flex-direction:column;gap:var(--sp-1)}
-.tk-greet{font-size:var(--fs-h1);font-weight:600;color:var(--ink);letter-spacing:-.02em;
+/* 首屏那句大标题：600 降到 500。它已经是全站最大的一档（27px），
+   再压 600 的字重就只剩"大"和"重"两个信息，读起来像横幅不像问候。
+   参考图那句同理是 700 字重但字号更大，两版都试过之后留这一版：靠尺寸分层，
+   不靠笔画粗细喊。 */
+.tk-greet{font-size:var(--fs-h1);font-weight:500;color:var(--ink);letter-spacing:-.02em;
   margin:0;text-align:left}
 .tk-sub{font-size:var(--fs-meta);color:var(--ink-3);line-height:1.5}
-.tk-card{background:var(--bg-surface);border:1px solid var(--line);border-radius:var(--r-5);
+.tk-card{background:var(--bg-surface);border:1px solid var(--line);border-radius:var(--r-4);
   box-shadow:var(--shadow-sm);display:flex;flex-direction:column;
-  transition:border-color var(--dur-fast) var(--ease),box-shadow var(--dur-fast) var(--ease)}
-.tk-card:focus-within{border-color:var(--line-strong);box-shadow:var(--shadow-md)}
+  transition:border-color var(--dur-fast) var(--ease),box-shadow var(--dur-base) var(--ease)}
+/* 聚焦只抬阴影，不动描边。以前这里把 border-color 提到 --line-strong，
+   暗色那档量出来是 rgb(126,129,114) —— 点进输入框，整张卡外面就亮起一圈
+   比正文还亮的边，就是用户点名"选中对话框不要旁边变成高亮"的那一件事。
+   阴影是"这张卡被端起来了"，描边变亮是"这张卡在发光"，要的是前者。 */
+.tk-card:focus-within{box-shadow:var(--shadow-md)}
 .tk-top{display:flex;align-items:center;gap:var(--sp-3);padding:var(--sp-3) var(--sp-4);
   border-bottom:1px solid var(--line-soft)}
 .tk-dirw{display:flex;align-items:center;gap:var(--sp-2);flex:1;min-width:0;
@@ -1573,12 +1609,18 @@ html[data-sidebar="collapsed"] .sb-me{justify-content:center;padding:0}
 .tk-name{border:1px solid var(--line);background:var(--bg-sunken);border-radius:var(--r-2);
   height:30px;padding:0 var(--sp-3);font-size:var(--fs-meta);color:var(--ink);width:150px}
 .tk-name:focus{outline:none;border-color:var(--line-strong);background:var(--bg-surface)}
-.cp-send{width:32px;height:32px;border-radius:var(--r-3);border:none;background:var(--btn-ink);
+/* 发送键从 32 抬到 36：它是这一屏唯一的"按下就有结果"的动作，和旁边
+   22px 高的阶段芯片、30px 高的引擎选择器挤在一起时，32 读起来像第三个芯片
+   而不是主操作。圆角留 --r-3（8px）不升档 —— 它嵌在 --r-4 的壳里，
+   内层比外层更圆就是这一版廉价感的来源之一。 */
+.cp-send{width:36px;height:36px;border-radius:var(--r-3);border:none;background:var(--btn-ink);
   color:var(--ink-inv);display:inline-flex;align-items:center;justify-content:center;cursor:pointer;
-  flex-shrink:0;transition:transform var(--dur-fast) var(--ease),opacity var(--dur-fast)}
-.cp-send:hover{opacity:.9}
-.cp-send:active{transform:scale(.95)}
-.cp-send:disabled{opacity:.4;cursor:not-allowed}
+  flex-shrink:0;box-shadow:var(--shadow-sm);
+  transition:transform var(--dur-fast) var(--ease),background var(--dur-fast) var(--ease),
+    box-shadow var(--dur-fast) var(--ease)}
+.cp-send:hover{box-shadow:var(--shadow-md)}
+.cp-send:active{transform:translateY(1px) scale(.98)}
+.cp-send:disabled{opacity:.4;cursor:not-allowed;box-shadow:none}
 
 /* ---------------- 模块 3：流程编排器 · 步骤卡片 ---------------- */
 .steps-flow-container{display:flex;flex-direction:column;gap:var(--sp-3)}
