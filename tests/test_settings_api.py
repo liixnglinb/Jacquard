@@ -270,3 +270,43 @@ def test_deleting_a_non_default_preset_does_not_move_the_default(client):
         assert _defaults(d) == ["gate-keep"], _defaults(d)
     finally:
         client.delete(f"/api/providers/{keep}")
+
+
+def test_retired_setting_keys_are_purged_on_init(client):
+    """功能下线之后，那行设置必须真的从库里走掉。
+
+    /api/settings 是整表吐出去的（app/main.py:998 → db.get_all_settings()），
+    所以"代码不再读它"并不等于"它不存在"—— update_repo / update_asset /
+    library_version / ui_accent 四把键就是这么在每台机器的 settings 表里躺到
+    现在的，接口一直往外回一个没人读的值。init_db() 里那张具名单负责收口。"""
+    for k in db.RETIRED_SETTINGS:
+        db.set_setting(k, "stale-value")
+    # 一把活键当对照：清退役键不许顺手把别人的也清了
+    db.set_setting("default_engine", "claude")
+    db.init_db()
+    left = db.get_all_settings()
+    for k in db.RETIRED_SETTINGS:
+        assert k not in left, f"退役键 {k} 还留在 settings 表里"
+    assert left.get("default_engine") == "claude", "清退役键时把活键一起清了"
+    body = client.get("/api/settings").json()
+    for k in db.RETIRED_SETTINGS:
+        assert k not in body, f"/api/settings 还在往外回退役键 {k}"
+
+
+def test_the_retired_list_names_only_keys_no_code_reads(client):
+    """反向锁：这张名单里不许出现代码还在读的键。
+    写错一个名字就是一次静默的数据删除，比留着孤儿值严重得多。"""
+    import re
+    from pathlib import Path
+    src = {}
+    for p in list((Path(__file__).resolve().parents[1] / "app").glob("*.py")) + \
+             list((Path(__file__).resolve().parents[1] / "static").glob("*.js")):
+        src[p.name] = p.read_text(encoding="utf-8")
+    for k in db.RETIRED_SETTINGS:
+        # ui_* 是整批按前缀读/写的，那类键要单独确认前端映射表里没有它
+        if k.startswith("ui_"):
+            assert f"'{k}'" not in src["ui.js"] and f'"{k}"' not in src["ui.js"], \
+                f"{k} 还在 ui.js 的外观白名单里，不能算退役"
+        hits = [n for n, s in src.items() if re.search(r"[\"']" + re.escape(k) + r"[\"']", s)
+                and n not in ("db.py",)]
+        assert not hits, f"{k} 仍被 {hits} 引用，它不是退役键"

@@ -13,6 +13,17 @@ DB_DIR = paths.DB_DIR
 DB_DIR.mkdir(exist_ok=True)
 DB_PATH = DB_DIR / "flowforge.db"
 
+# 功能下线后**必须**留在这里的键名：init_db() 每次启动都会把它们从 settings 表里删掉。
+# 四条各是谁：
+#   update_repo / update_asset —— 早期"从 GitHub releases/latest 找包"的仓库与资产名筛选串，
+#     换成读 COS latest.json 之后代码一行都不读了（真源见 app/updater.py 的清单地址）；
+#   library_version —— 随 app/presets_library.py（出厂流程/技能播种）一起删掉；
+#   ui_accent —— 「可换强调色」设置整体删除后留下的残值，品牌位改成黑白反转之后
+#     它没有可换的东西了（守卫测试 test_accent_setting_is_gone_for_good 管的是前端四处，
+#     管不到已经躺在用户库里的那一行，所以清它得在这儿做）。
+# 新增功能下线时把键名加进来，别只删读它的那行代码。
+RETIRED_SETTINGS = ("update_repo", "update_asset", "library_version", "ui_accent")
+
 
 def get_conn():
     conn = sqlite3.connect(DB_PATH)
@@ -98,6 +109,13 @@ def init_db():
     # DESC 不用写：SQLite 倒着扫普通索引就是 created_at DESC, id DESC。
     c.execute("CREATE INDEX IF NOT EXISTS idx_runs_created ON runs(created_at, id)")
     c.execute("CREATE INDEX IF NOT EXISTS idx_runs_pipeline ON runs(pipeline, created_at, id)")
+    # 退役设置键的清理。这几把键的**代码**已经删了，但行还留在每台机器的 settings 表里，
+    # 而 /api/settings 是整表吐出去的 —— 结果是界面看不见、接口里却一直回一个没人读的值。
+    # 以前这类东西踩过好几回（HANDOFF §2 的 update_repo / update_asset 那条），
+    # 所以清键必须跟功能下线同一次做，不能"先删代码，回头再清库"，回头就没有了。
+    # 只清这一张具名单，不做"未知键一律删"：新版本加的键不该被旧版本删掉。
+    for _retired in RETIRED_SETTINGS:
+        c.execute("DELETE FROM settings WHERE key=?", (_retired,))
     conn.commit(); conn.close()
 
 

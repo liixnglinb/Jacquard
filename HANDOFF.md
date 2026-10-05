@@ -129,6 +129,35 @@ Cloudflare Pages 检查 success，线上实测版本 1.3.0 / 体积 36.4 MB / mo
 本轮没动语义色所以没跟着改，但"逐值等于软件"这条对它已经不成立 —— 下次真动
 状态色时一起收，别单独为它发一版。
 
+**1.3.1（2026-10-05 同日第二轮）是纯清理：删死样式 + 收退役设置键，界面一个像素没动。**
+判"死"的口径要记住，别照第一版脚本的写法抄：
+① 一个选择器**死** ⟺ 它引用的**每一个**类名都没人用。`:is(.btn,.field-input)` 是"或"，
+   只要有一个别名还活着整条就活着 —— 第一版脚本按"含死名即死"删，一口气删掉了 12 条
+   活规则，包括 `.st-strip b` 的等宽数字、`.btn-primary` 的实心样式、`code/pre` 的等宽字体。
+   靠 `git checkout --` 回滚重写的。**这类脚本一律先 dry-run 打印再 --apply。**
+② 类名可能是 JS 拼出来的（`'st-'+状态`、`hm-l${n}`、`st-c${i}`），扫描要按"前缀是否作为
+   字符串字面量出现过"排除掉，判不了就不删 —— 所以最后落刀的是 39 个而不是首轮的 133 个。
+③ **假阳性实锤一例**：`w3` 被当成类名，其实来自 `background-image:url("data:image/svg+xml;...
+   http://www.w3.org/2000/svg...")`。所以每条候选都得回去 grep 一次，不能只看扫描结论。
+删掉的东西：`style.css` 21 条零引用规则（`.set-row` / `.rb-*` 七态徽标 / `.plop*` /
+`.editor-layout` / `.rc-*` 四条 / `.transcript-viewport` / `.toast-*` 四条）+ 两个没人 `var()`
+的令牌 `--info` `--info-soft`；`voyra-ui.css` 的 `.code-view`/`.artifact-path`；
+`voyra-software-base.css` 里 11 处 `:is()` 死别名与 `.sr-only`。
+**改完必须量的不是"测试绿"而是"渲染没变"**：分栏缝仍是 `rgb(60,60,60)`、侧栏 `rgb(42,42,42)`、
+`.sb-item` 242/14px、`.tk-card` 12px、`.cp-send` 36/36/8、`.btn` 34/8、`.st-strip b` 21.98px
+tabular-nums、`.hm-cell` rgb(42,42,42) —— 逐项与 1.3.0 基线一致，控制台零错误。
+反向扫出来的唯一孤儿类是 `hm-l0`（热力图 0 档），它**本来就没有规则**，0 档就是 `.hm-cell`
+的底色，不是这次剪掉的。
+
+**工作区整理**（只删可再生物，全部 gitignore 且未跟踪）：`build/` 53M、`dist_app/` 75M、
+四个旧安装包 `release/Loom-1.2.{6,7,8,9}-setup.exe` 约 152M、`.pytest_cache/`、
+所有 `__pycache__/`、空的 `.worktrees/` —— **357 MB → 83 MB**。
+删旧包之前先逐个 `curl -sI` 过 COS，五个版本的 `content-length` 与本地字节数一一对上，
+所以这一步是可逆的（要哪版重新下即可）。**没动**：`modex-data/`（用户数据）、
+`.workbuddy-ai/`（别的工具的状态目录）、`assets/`、当前版 `Loom-1.3.0-setup.exe`。
+`modex-data/flowforge.db` 的 settings 表里躺着一行 `k1 = v1`（测试写脏的，不是产品键），
+**没替用户删** —— 那是他库里的数据，要清由他自己动手。
+
 **2026-09-28 这一轮全是下载页与图标，没动软件运行时**（所以不需要发版，改了就直接上线）：
 ① 图标 J 的字标从**三个矩形拼**改成**一条带两个弯的中心线**（竖笔 → 底弯 r16 → 横脚 → 钩部 r12 → 平切收口，
 笔画宽 16），直角钩那个"往回上一格"的台阶就是用户嫌丑的地方；16~40 五档继续硬像素，改成钩尖收短一档 +
@@ -452,7 +481,14 @@ COS 产物 key**（页里写死了 `Loom-1.2.6-setup.exe` 的直链）；`logo.s
   2026-09-25 那一轮对出来的四处漂移：mac 的三枚 traffic-light（软件已换自绘窗控的无边框窗口）、侧栏那条 `border-right`（软件删了，分栏只靠色差）、进度行的 `--d-panel` 底带（软件的 `.rp-bar` 不铺底）、"刚写入"推到行尾（被浮在右上角的进程卡压住半截）。**逐值比 `getComputedStyle`，别目测像不像** —— 这四条里没有一条是"看一眼能发现"的。
 - **这张页被砍过一次，别再砍。** `9c53b61`（2026-09-19）把它从 64KB 删到 25.8KB，交互动效、区块、mock 窗口的精细度全没了；`a28065e`（2026-09-20）按软件真实结构重做到 63.7KB。改它之前先 `git show` 对比一下字节数，掉一档就是又在删东西。
 - **没有 CI。** `liixnglinb/Jacquard` 里连 `.github/` 都没有，测试只在本地跑。公开仓库加一条 `python -m pytest -q` 的 workflow 成本很低，但会引入"CI 绿了才发版"的新约定，先问。
-- **`update_repo` / `update_asset` 是废弃设置项**，值还留在用户机器的 settings 表里、`/api/settings` 也还回得出来。代码已不读它们。清理要连带迁移，别顺手删一半。
+- **~~`update_repo` / `update_asset` 是废弃设置项~~ —— 1.3.1 收了。** 代码本来就不读它们（`grep -rn update_repo app/ static/ tests/` 全空），但 `/api/settings` 是**整表**吐出去的
+  （`app/main.py` → `db.get_all_settings()`），所以那两行一直挂在接口响应里。同类的还有
+  `library_version`（随 `presets_library.py` 一起死的）和 `ui_accent`（「可换强调色」整体删除后的残值 ——
+  前端那四处有 `test_accent_setting_is_gone_for_good` 守着，**但它管不到已经躺在用户库里的那一行**）。
+  现在 `db.RETIRED_SETTINGS` 是一张具名单，`init_db()` 每次启动清一遍，两条测试钉住：
+  清完活键必须还在、名单里的键必须真的没人引用（写错一个名字就是一次静默的数据删除）。
+  **以后功能下线，键名要当场加进这张名单**，别只删读它的那行代码。
+  注意它**不是**"未知键一律删"：新版本加的键不该被旧版本删掉。
 - **只有 Windows 安装包。** macOS/Linux 靠源码跑（README 里这么写的，没撒谎）。
 - **组件图鉴里有一行 mock 数据写着 `modelflow`**（`src/pages/UIKit.jsx` 的演示表格）。是组件示例不是产品入口，上一任故意没改。
 - **工作区面板是 3 秒轮询**，不是文件事件订阅（子进程直接写盘，没有可订阅的事件，Windows 上也不想在包里塞 watchdog）。一步里连写多个文件时面板最多滞后 3 秒 —— 设计取舍，不是 bug。

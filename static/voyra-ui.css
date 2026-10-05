@@ -21,7 +21,7 @@
 .st-note, .st-nodata span { color:var(--ink-3); }
 .pv-input, .st-search { border-radius:var(--r-2); }
 .sb-name { color:var(--ink); }
-.log, .code-view, .artifact-path { font-family:var(--font-mono); }
+.log{ font-family:var(--font-mono); }
 
 /* 页面读取状态条：语义色只上描边与底色，正文一律 --ink* 系墨色。 */
 .workspace-state {

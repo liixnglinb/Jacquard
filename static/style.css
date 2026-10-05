@@ -154,7 +154,6 @@
   --good:var(--st-done);   --good-soft:var(--st-done-bg);
   --bad:var(--st-failed);  --bad-soft:var(--st-failed-bg);
   --warn:var(--st-waiting);--warn-soft:var(--st-waiting-bg);
-  --info:var(--st-running);--info-soft:var(--st-running-bg);
   --shadow-composer:var(--shadow-sm);
   --slide:var(--dur-fast) var(--ease);
   --z-float:var(--z-proc);
@@ -886,7 +885,6 @@ body.up-on .up-card{opacity:1;transform:translate(-50%,-50%);pointer-events:auto
 .card > .card-h + div{padding:12px 14px}
 
 /* ---------- 行式列表 ---------- */
-.set-row{display:flex;flex-direction:column;gap:2px;padding:8px}
 .pl-list{display:flex;flex-direction:column;gap:2px}
 /* 文件选择框不能 display:none（部分浏览器会拒绝 programmatic click），藏成 1px 透明 */
 .pl-file{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none;overflow:hidden}
@@ -939,11 +937,6 @@ body.up-on .up-card{opacity:1;transform:translate(-50%,-50%);pointer-events:auto
   padding:1px 7px;border-radius:var(--r-pill);font-size:var(--fs-micro);font-weight:600;line-height:1.7;
   border:1px solid transparent;white-space:nowrap}
 .run-badge,.badge{background:var(--bg-pill);color:var(--ink-3)}
-.rb-done{background:var(--good-soft);color:var(--good)}
-.rb-running,.rb-revising{background:var(--accent-soft);color:var(--accent)}
-.rb-failed{background:var(--bad-soft);color:var(--bad)}
-.rb-waiting{background:var(--accent-soft);color:var(--accent-deep)}
-.rb-pending,.rb-cancelled{background:var(--bg-pill);color:var(--ink-3)}
 .sk-badge{background:var(--bg-pill);color:var(--ink-3)}
 .sk-badge-user{background:var(--accent-soft);color:var(--accent-deep)}
 .ff-tag{background:var(--accent-soft);color:var(--accent-deep)}
@@ -1002,12 +995,6 @@ select.pv-input{appearance:none;padding-right:28px;cursor:pointer;
 .step-body .pv-form{padding:0}
 .step-ops{display:flex;flex-direction:column;gap:4px;flex-shrink:0;opacity:.35;transition:opacity var(--slide)}
 .step-card:hover .step-ops,.step-card:focus-within .step-ops{opacity:1}
-.plop{width:25px;height:23px;border-radius:var(--r-1);border:1px solid var(--line-soft);
-  background:transparent;color:var(--ink-3);font-size:var(--fs-meta);cursor:pointer;
-  transition:background var(--slide),color var(--slide)}
-.plop:hover:not(:disabled){background:var(--bg-hover);color:var(--ink)}
-.plop:disabled{opacity:.3;cursor:not-allowed}
-.plop-del:hover:not(:disabled){background:var(--bad-soft);color:var(--bad)}
 .step-adv{border-top:1px solid var(--line-soft);padding-top:8px;margin-top:2px}
 .step-adv-toggle{display:inline-flex;align-items:center;gap:6px;background:none;border:none;cursor:pointer;
   padding:2px 0;font-size:var(--fs-meta);color:var(--ink-3);font-family:inherit}
@@ -1676,8 +1663,6 @@ html[data-theme="light"] .modal{background:rgba(20,20,20,.32)}
   border-radius:var(--r-3)}
 .adv-grid{display:grid;grid-template-columns:1fr 1fr;gap:var(--sp-4)}
 .step-add-row{display:flex;justify-content:center;padding:var(--sp-2) 0}
-.editor-layout{display:flex;flex-direction:column;gap:var(--sp-4);max-width:var(--content-w);
-  margin:0 auto;padding:var(--sp-5) var(--sp-6)}
 .ed-header{display:flex;align-items:center;justify-content:space-between;gap:var(--sp-3);
   padding-bottom:var(--sp-3);border-bottom:1px solid var(--line-soft)}
 .ed-title-cluster{display:flex;align-items:center;gap:var(--sp-2);min-width:0;flex:1}
@@ -1735,17 +1720,6 @@ html[data-theme="light"] .modal{background:rgba(20,20,20,.32)}
 /* ---------------- 模块 5：运行控制台（双栏固定） ---------------- */
 .run-console-frame{display:flex;align-items:flex-start;gap:0;min-height:0;background:var(--bg-page)}
 .run-main-stream{flex:1;min-width:0;display:flex;flex-direction:column}
-.rc-header{height:var(--topbar-h);display:flex;align-items:center;justify-content:space-between;
-  gap:var(--sp-3);padding:0 var(--sp-6);border-bottom:1px solid var(--line-soft);
-  background:var(--bg-surface);flex-shrink:0}
-.rc-title-cluster{display:flex;align-items:center;gap:var(--sp-3);min-width:0}
-.rc-title-cluster h2{font-size:var(--fs-body);font-weight:600;color:var(--ink);margin:0;
-  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.rc-id{font-family:var(--font-mono);font-size:var(--fs-micro);color:var(--ink-4);
-  background:var(--bg-sunken);padding:1px 6px;border-radius:var(--r-1)}
-.rc-actions{display:flex;align-items:center;gap:var(--sp-2);flex-shrink:0}
-.transcript-viewport{flex:1;min-height:0;overflow-y:auto;padding:var(--sp-6);
-  display:flex;flex-direction:column;gap:var(--sp-4)}
 /* 悬浮进程卡改造：不再 position:fixed 遮挡转录，改为常驻右栏（sticky 跟随滚动）。 */
 .run-side-pane{width:300px;flex-shrink:0;align-self:flex-start;position:sticky;
   top:var(--topbar-h);max-height:calc(100vh - var(--topbar-h));overflow-y:auto;
@@ -1874,11 +1848,6 @@ html[data-theme="light"] .modal{background:rgba(20,20,20,.32)}
 .toast.show{opacity:1;transform:translate(-50%,0);pointer-events:auto}
 .toast.ok{background:var(--st-done);color:var(--on-solid)}
 .toast.err{background:var(--st-failed);color:var(--on-solid)}
-.toast-body{display:flex;align-items:center;gap:var(--sp-2)}
-.toast-ic{display:inline-flex}
-.toast-msg{white-space:nowrap}
-.toast-act-btn{margin-left:var(--sp-2);border:none;background:rgba(255,255,255,.2);color:inherit;
-  font-size:var(--fs-micro);font-weight:600;padding:2px 6px;border-radius:var(--r-1);cursor:pointer}
 
 .checkpoint-banner{display:flex;align-items:flex-start;gap:var(--sp-4);padding:var(--sp-4);
   background:var(--st-waiting-bg);border:1px solid var(--st-waiting);border-radius:var(--r-4);
