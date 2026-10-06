@@ -24,6 +24,16 @@ def _hold(port: int) -> socket.socket:
     return s
 
 
+def _spare_port() -> int:
+    """让系统挑一个空口。写死端口会把这条测试和开发机绑在一起：本机验证服务
+    占着 8123 时，_hold 自己先炸（WinError 10048），报的是环境问题不是契约破了。"""
+    s = socket.socket()
+    s.bind(("127.0.0.1", 0))
+    port = s.getsockname()[1]
+    s.close()
+    return port
+
+
 def test_port_is_a_preference_not_a_hard_requirement():
     """首选口被占必须往后找，且找到的那个口确实是空的。"""
     holder = _hold(8000)
@@ -39,12 +49,13 @@ def test_port_is_a_preference_not_a_hard_requirement():
 
 def test_port_free_asks_bind_not_connect():
     """只 listen 没 connect 上的口，connect 判据会说"空"，bind 才说真话。"""
-    holder = _hold(8123)
+    port = _spare_port()
+    holder = _hold(port)
     try:
-        assert not L._port_free(8123)
+        assert not L._port_free(port)
     finally:
         holder.close()
-    assert L._port_free(8123)
+    assert L._port_free(port)
 
 
 def test_single_instance_lock_is_a_named_mutex_not_a_port_probe():
