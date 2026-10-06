@@ -163,7 +163,8 @@ window.winClose = async () => {
      n 恒 0：有任务在跑时关窗口从来不弹确认，直接杀掉正在跑的智能体。
      名字对不上不会报错，只会静默失效，所以有一条测试全局禁那个拼法。 */
   const n = (ST.liveRuns !== undefined) ? ST.liveRuns : 0;
-  if(n > 0 && !confirm(t('win.closeBusy', {n}))) return;
+  if(n > 0 && !(await window.ffAsk({danger:true, title:t('win.closeTitle'),
+      body:t('win.closeBusy', {n}), ok:t('win.closeOk')}))) return;
   await shellCall('win_close');
 };
 window.addEventListener('pywebviewready', () => { SHELL_OK = true; syncShell(); });
@@ -502,7 +503,7 @@ window.footCycle = async function(key){
   const list = CYCLE[key]; if(!list) return;
   // 这条路径直接 nav.resolve() 重绘整页，绕开了 nav.go 上那道未保存守卫 ——
   // 在流程编辑器里换个主题就能把没存的步骤改动冲没。所以先问守卫，再动设置。
-  if(window.navGuardAsk && !window.navGuardAsk()) return;
+  if(!await Promise.resolve(window.navGuardAsk && window.navGuardAsk())) return;
   const next = list[(list.indexOf(String(A[key] ?? list[0])) + 1) % list.length];
   await window.setAppearance({[key]: next});
   const pop = document.getElementById('sbPop');
@@ -761,6 +762,7 @@ function viewTransitionIn(){
 
 let NAV_SEQ=0;
 let NAV_CHAIN=Promise.resolve();   /* 导航排队用，见 nav.resolve() */
+let GUARD_PASS='', GUARD_SKIP=false, LAST_VIEW='#/';   /* 未保存守卫：见 resolve() 开头 */
 /* 永远不把已有内容清空：旧页面一直留到新页面算好之后一次性换掉。
    换页时短暂显示上一页，比整页白一下再长出来要稳。 */
 function viewLoading(){
@@ -773,14 +775,42 @@ window.viewLoading = viewLoading;
 
 const nav = {
   go(id, extra){
-    // editor.js 注册的未保存守卫；没有编辑器在场时它永远返回 true
-    if(window.navGuardAsk && !window.navGuardAsk()) return;
+    // editor.js 注册的未保存守卫；没有编辑器在场时它永远返回 true。
+    // 守卫现在是页内 Promise（原生 confirm 会挂起整页线程），确认时带上目标
+    // hash —— resolve() 那道 Back 键守卫看到同一目标就不再二次问。
     let hash = '#/'+id;
     if(extra) hash += '/'+extra;
-    if(location.hash === hash){ nav.resolve(); return; }
-    location.hash = hash;
+    const proceed = () => {
+      if(location.hash === hash){ nav.resolve(); return; }
+      location.hash = hash;
+    };
+    Promise.resolve(window.navGuardAsk && window.navGuardAsk(hash)).then(ok => { if(ok) proceed(); });
   },
   resolve(){
+    /* Back 键和手改 URL 不经过 nav.go，直接落在 hashchange 上 —— 这里是它们
+       唯一的守卫口。难点：hashchange 跑的时候 URL 已经改走了，plDirty/skDirty
+       按 hash 自判归属会返回 false（守卫整个哑掉，改动被静默重绘冲掉——
+       1.3.3 第一版就栽在这）。所以用 LAST_VIEW（出发地）问 navGuardOwns，
+       再把出发地 hash 递给 navIsDirty 判脏；确认才放行渲染，取消把 hash 摆回
+       并跳过本轮渲染（界面原样，输入框里的字一个不动）。 */
+    const target = location.hash || '#/home';
+    const from = LAST_VIEW;
+    /* 取消后摆回 hash 引起的本轮必须最先短路，而且要在 leavingEditor 判断**之外**：
+       摆回之后 target === from，"正离开编辑器"不成立，skip 检查若嵌在里面会被
+       绕过，于是照常全量重渲染 —— 用户明明选了"留在本页"，改动却被冲回基线。 */
+    if(GUARD_SKIP){ GUARD_SKIP = false; return; }
+    const leavingEditor = window.navGuardOwns && window.navGuardOwns(from) && from !== target;
+    if(window.navGuardAsk && leavingEditor && GUARD_PASS !== target){
+      const dirty = (window.navIsDirty ? navIsDirty(from) : false);
+      if(dirty){
+        Promise.resolve(window.navGuardAsk(target, true)).then(ok => {
+          if(ok){ GUARD_PASS = target; nav.resolve(); }
+          else { GUARD_SKIP = true; if(location.hash !== from) location.hash = from; }
+        });
+        return;
+      }
+    }
+    GUARD_PASS = '';
     const seq=++NAV_SEQ;
     let raw = (location.hash||'').replace(/^#\/?/,'');
     if(!raw) raw = 'home';
@@ -808,7 +838,7 @@ const nav = {
       else if(view==='runs') await run(window.renderRuns,'runs');
       else if(view==='run') await run(()=>window.renderRunConsole(extra),'runs');
       else await run(window.renderHome,'home');   /* 认不出来的一律回首页输入台 */
-      if(seq===NAV_SEQ){ viewTransitionIn(); renderSidebarLists(); }
+      if(seq===NAV_SEQ){ viewTransitionIn(); renderSidebarLists(); LAST_VIEW = location.hash || LAST_VIEW; }
     }).catch(e => {
       /* 排队就是把所有后续导航挂在这一条 promise 上：某一轮里抛出来异常
          会让链子变成 rejected 状态，之后每一次 .then 都被跳过 —— 整个应用
@@ -1077,7 +1107,8 @@ window.sbArchive = async function(name, flag){
   renderSidebarLists();
 };
 window.sbDelete = async function(name){
-  if (!confirm(t('list.deleteConfirm',{name}))) return;
+  if (!(await window.ffAsk({danger:true, title:t('ff.delFlow'),
+      body:t('list.deleteConfirm',{name}), ok:t('ff.delete')}))) return;
   const r = await del('/api/pipelines/'+encodeURIComponent(name)).catch(e=>({detail:String(e)}));
   if (r && r.detail){ toast(r.detail); return; }
   renderSidebarLists();
@@ -1807,9 +1838,10 @@ window.capsSaveMem = async function(){
   secRepaint('caps');   // 条目的字节数是盘点出来的，不重算就还是旧数字
   window.capsClose();
 };
-window.capsClose = function(){
+window.capsClose = async function(){
   if (CAPS_VIEW && CAPS_VIEW.dirty && document.getElementById('capsTa')
-      && !confirm(t('caps.unsaved'))) return;
+      && !(await window.ffAsk({title:t('ff.unsavedTitle'), body:t('caps.unsaved'),
+        ok:t('ff.leave'), cancel:t('ff.keep')}))) return;
   CAPS_VIEW = null;
   const r = document.getElementById('capsViewRoot');
   if (r) r.remove();
@@ -2224,7 +2256,8 @@ window.pfEdit=function(id){
   pfOpenModal({...p});
 };
 window.pfDel=async function(id){
-  if(!confirm(t('pr.delConfirm'))) return;
+  if(!(await window.ffAsk({danger:true, title:t('ff.delPreset'),
+      body:t('pr.delConfirm'), ok:t('ff.delete')}))) return;
   const r=await del('/api/providers/'+id).catch(e=>({detail:String(e)}));
   if(r.detail){ toast(r.detail); return; }
   toast(t('pr.deleted')); renderSettings();

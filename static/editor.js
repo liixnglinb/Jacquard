@@ -34,11 +34,22 @@ let _ST_PRESETS = null;
    两个编辑器原来一点保护都没有：改完步骤直接按取消、点侧栏、按 Ctrl K 就静默丢。
    守卫按 location.hash 自判归属，离开编辑器就自动不报脏，所以不需要谁去反注册。 */
 const NAV_GUARDS = [];
-function navIsDirty(){
-  return NAV_GUARDS.some(f => { try { return !!f(); } catch (e) { return false; } });
+function navIsDirty(h){
+  // h 可选：hashchange 已经把 URL 改走之后（Back 键），要用出发地那个 hash 判脏，
+  // 否则 plDirty/skDirty 按 hash 自判归属会直接返回 false，守卫整个哑掉。
+  return NAV_GUARDS.some(f => { try { return !!f(h); } catch (e) { return false; } });
 }
 // nav.go 与真 href 的锚点点击都问这一个口子（app.js / 下面的点击捕获）
-window.navGuardAsk = () => !navIsDirty() || !!confirm(t('ed.unsavedLeave'));
+/* 返回 Promise<boolean>；可带目标 hash——同一目标确认过一次就不再问
+     （nav.go 确认完改 hash，hashchange 进 resolve 时是同一路导航）。 */
+let GUARD_OK_HASH = '';
+window.navGuardAsk = function(target, assumeDirty){
+  const h = (target !== undefined) ? target : (location.hash || '#/home');
+  if(!assumeDirty && (!navIsDirty() || GUARD_OK_HASH === h)){ GUARD_OK_HASH = ''; return Promise.resolve(true); }
+  if(GUARD_OK_HASH === h){ GUARD_OK_HASH = ''; return Promise.resolve(true); }
+  return window.ffAsk({title:t('ff.unsavedTitle'), body:t('ed.unsavedLeave'),
+    ok:t('ff.leave'), cancel:t('ff.keep')}).then(ok => { if(ok) GUARD_OK_HASH = h; return !!ok; });
+};
 
 let PL_BASE = '';
 function plSnap(E){
@@ -48,8 +59,9 @@ function plSnap(E){
       x.checkpoint?1:0, x.role||'', (x.model||'').trim(), (x.engine||'').trim(),
       (x.extra_prompt||'').trim()])});
 }
-function plDirty(){
-  if(!PL_EDIT || !location.hash.startsWith('#/pipeline-edit')) return false;
+function plDirty(h){
+  h = h || location.hash;
+  if(!PL_EDIT || !h.startsWith('#/pipeline-edit')) return false;
   plSyncInputs();
   return plSnap(PL_EDIT) !== PL_BASE;
 }
@@ -57,8 +69,9 @@ let SK_BASE = '';
 function skSnap(o){
   return JSON.stringify({n:o.n||'', c:o.c||'', nw:o.nw?1:0});
 }
-function skDirty(){
-  if(!SK_EDIT || !location.hash.startsWith('#/skill-edit')) return false;
+function skDirty(h){
+  h = h || location.hash;
+  if(!SK_EDIT || !h.startsWith('#/skill-edit')) return false;
   const el = document.getElementById('skContent'), nm = document.getElementById('skName');
   return skSnap({n: nm ? nm.value : SK_EDIT.name,
                  c: el ? el.value : SK_EDIT.content,
@@ -81,7 +94,10 @@ window.addEventListener('beforeunload', (e)=>{
 // 主导航和侧栏条目现在是真 href，浏览器默认直接改 hash，nav.go 拦不到，只能在这儿接
 document.addEventListener('click', (e)=>{
   const a = e.target && e.target.closest ? e.target.closest('a[href^="#/"]') : null;
-  if(a && !window.navGuardAsk()) e.preventDefault();
+  if(!a || !navIsDirty()) return;
+  /* preventDefault 必须同步做：等 Promise 回来，浏览器默认跳转早已发生 */
+  e.preventDefault(); e.stopImmediatePropagation();
+  window.navGuardAsk(a.getAttribute('href')).then(ok => { if(ok) location.hash = a.getAttribute('href'); });
 }, true);
 
 async function plLoad(){
@@ -151,7 +167,8 @@ window.skFilterList = function(q){
   const box = document.getElementById('skNavList'); if(box) box.innerHTML = skNavListHtml(list, SK_LIST_ACTIVE);
 };
 window.skPick = async function(name){
-  if(skDirty() && !confirm(t('ed.unsavedGuard'))) return;
+  if(skDirty() && !(await window.ffAsk({title:t('ff.unsavedTitle'), body:t('ed.unsavedGuard'),
+      ok:t('ff.leave'), cancel:t('ff.keep')}))) return;
   SK_LIST_ACTIVE = name;
   document.querySelectorAll('.sk-nav-item').forEach(el=>{
     const b = el.querySelector('b'); el.classList.toggle('active', !!b && b.textContent===name);
@@ -267,7 +284,8 @@ window.skDuplicate = async function(name){
   nav.go('skill-edit/'+r.name);
 };
 window.skDelete = async function(name){
-  if(!confirm(t('sk.delConfirm',{name}))) return;
+  if(!(await window.ffAsk({danger:true, title:t('ff.delSkill'),
+      body:t('sk.delConfirm',{name}), ok:t('ff.delete')}))) return;
   skCloseModal();
   const r = await _del('/api/skills/'+encodeURIComponent(name)).catch(e=>({detail:e.message}));
   if(r.detail){ toast(r.detail); return; }
@@ -397,8 +415,14 @@ window.plDuplicate = async function(name){
   toast(t('list.copied',{name:label}), true);
   nav.go('pipeline-edit/'+r.name);
 };
+/* 这两个路由的视图带未保存守卫。resolve() 在 hash 已被 Back 键改走之后，
+   要用"出发地"判断是否正离开编辑器 —— 路由知识归编辑器文件所有。 */
+window.navGuardOwns = h => /^#\/(pipeline-edit|skill-edit)(\/|$)/.test(h || '');
+window.navIsDirty = navIsDirty;   /* resolve() 在 Back 键路径上要用出发地 hash 判脏 */
+
 window.plDelete = async function(name){
-  if(!confirm(t('list.deleteConfirm',{name}))) return;
+  if(!(await window.ffAsk({danger:true, title:t('ff.delFlow'),
+      body:t('list.deleteConfirm',{name}), ok:t('ff.delete')}))) return;
   const r = await _del(`/api/pipelines/${encodeURIComponent(name)}`).catch(e=>({detail:e.message}));
   if(r.detail){ toast(r.detail); return; }
   renderPipelines();
@@ -448,7 +472,8 @@ window.plImportFile = async function(el){
   if(PL_TPLS.some(p=>p.name===name)){
     let nn = name + '-copy', k = 2;
     while(PL_TPLS.some(p=>p.name===nn)) nn = `${name}-copy${k++}`;
-    if(!confirm(t('list.importDup',{name, nn}))) return;
+    if(!(await window.ffAsk({title:t('list.importDupTitle'),
+        body:t('list.importDup',{name, nn}), ok:t('ff.ok')}))) return;
     send = nn; extra = ' copy';      /* 撞名换了标识还沿用原显示名，列表里会出现两行同名 */
   }
   const r = await _post('/api/pipelines', {name: send, label: (j.label || name) + extra,

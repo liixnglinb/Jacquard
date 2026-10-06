@@ -67,7 +67,7 @@ window.renderRuns = async function(){
     </div>`;
 };
 window.runDelete = async function(id){
-  if(!confirm(t('run.delConfirm'))) return;
+  if(!(await window.ffAsk({danger:true, title:t('ff.delRun'), body:t('run.delConfirm'), ok:t('ff.delete')}))) return;
   await _api('/api/runs/'+id, {method:'DELETE'}).catch(()=>({}));
   toast(t('run.deleted'));
   window.renderSidebarLists();
@@ -643,7 +643,7 @@ window.runRerun = async function(index){
   const tail = runSteps(RUN).length - index - 1;
   let msg = t('run.rerunConfirm',{n:index+1, label:s.label||s.key||''});
   if(tail>0) msg += '\n' + t('run.rerunTail',{n:tail}).replace(/^\\n/,'');
-  if(!confirm(msg)) return;
+  if(!(await window.ffAsk({title:t('run.rerunTitle'), body:msg, ok:t('ff.ok')}))) return;
   const r = await _post('/api/runs/'+RUN.id+'/rerun', {index}).catch(e=>({detail:String(e)}));
   if(r.detail){ toast(r.detail); return; }
   toast(t('run.rerunDone'), true);

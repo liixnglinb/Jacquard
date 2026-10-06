@@ -618,14 +618,27 @@ def test_the_app_downloads_an_update_without_being_asked():
     assert "available" in auto, "没判阶段就开下：已经在下的会被重复触发"
 
 
-def test_update_flow_has_no_native_confirm_dialog():
+def test_no_native_confirm_anywhere_in_the_frontend():
     """原生 confirm() 在 WebView2 里顶着一句「127.0.0.1:8000 显示」—— 那是在报
-    开发服务器来源，不是软件名字；按钮是系统蓝，跟黑白品牌无关；位置还和居中浮层
-    脱节。装更新这一步会**退出程序**，最该说清楚的地方长得最不像这个软件。"""
-    for fn in ("window.upApply = async function", "window.upDownload = async function",
-               "window.applyUpdate = async function"):
-        seg = APP_JS.split(fn)[1].split("\n};")[0]
-        assert "confirm(" not in seg, f"{fn} 还在弹原生确认框"
+    开发服务器来源，不是软件名字；按钮是系统蓝，跟黑白金的品牌无关；还会挂起
+    整页线程。1.2.6 先换了装更新那两记，1.3.3 把剩余 11 处全部换成页内 ffAsk。
+    这条是全局禁令：去注释后任何前端脚本都不许再出现 confirm(。
+    （历史：本测试曾只盯 upApply/upDownload/applyUpdate 三个函数——
+    按函数清单禁等于给没进清单的地方发通行证，2026-10-05 起改为全量。）"""
+    for name in ("app.js", "editor.js", "run.js", "ui.js", "ff-confirm.js"):
+        src = (STATIC_DIR / name).read_text(encoding="utf-8")
+        body = re.sub(r"/\*.*?\*/", "", src, flags=re.S)
+        body = re.sub(r"(?m)^\s*//.*$", "", body)
+        assert "confirm(" not in body, f"{name} 里还有原生 confirm("
+    ask = (STATIC_DIR / "ff-confirm.js").read_text(encoding="utf-8")
+    assert "window.ffAsk" in ask, "ffAsk 没挂到 window 上，11 处调用点会全部 ReferenceError"
+    # 结构契约：渲染成 .modal.open > .modal-box，voyra-dialogs.js 才会接管
+    # 焦点陷阱 / Esc / aria / 焦点还原——写成别的类名这些就全部静默失效。
+    assert "modal open ff-ask" in ask and "modal-box" in ask
+    assert 'data-safe-focus' in ask, "默认焦点必须落在取消上（危险操作的安全默认是不做）"
+    assert 'data-dialog-close' in ask, "Esc 关闭走 voyra-dialogs 的 data-dialog-close"
+    html = INDEX_HTML
+    assert "ff-confirm.js" in html, "ff-confirm.js 没进 index.html，ffAsk 是空中楼阁"
 
 
 def test_update_confirm_lives_in_the_card_and_says_what_it_costs():

@@ -1213,6 +1213,10 @@ html[data-theme="light"] .modal{background:rgba(20,20,20,.32)}
   font-size:var(--fs-lead);line-height:1;cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center}
 .modal-x:hover{background:var(--bg-hover);color:var(--ink)}
 .modal-foot{display:flex;justify-content:flex-end;gap:8px;padding:11px 16px;
+/* ffAsk 的正文：多行（重跑确认里有一句代价说明），pre-line 让 JS 里的换行生效 */
+.ff-ask-body{padding:14px 16px 4px;color:var(--ink-2);font-size:var(--fs-body);line-height:1.65;white-space:pre-line}
+/* 确认框比 .modal-box 的默认 440px 窄一档：一两行文案配四百多宽会空出右边一大块 */
+.ff-ask-box{width:400px}
   border-top:1px solid var(--line-soft);background:var(--bg-pill);flex-shrink:0}
 /* 这两个宽度覆盖必须排在 .modal-box 之后：同特异度靠书写顺序决胜，
    写在它前面就等于没写（技能全文预览那张 920px 之前就是这么静默变成 440px 的）。 */

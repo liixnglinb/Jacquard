@@ -198,6 +198,38 @@ UI 用"，只取通用纪律：单强调色、同一套圆角、按钮对比度 
 （布局类改动为零，1.3.0 那轮验过三档）；**`.main:has(...)` 需要 WebView2 ≥105**，
 evergreen 满足，老固件上金线不显示（安全降级=回到没有加载条，不炸别的）。
 
+**1.3.3（2026-10-05 第四轮）把最后一处"原生系统壳漏进来"的地方收掉了：11 处 `confirm()` 全部换页内 ffAsk。**
+`static/ff-confirm.js` 渲染成 `.modal.open > .modal-box`（复用既有模态契约），voyra-dialogs.js
+自动接管焦点陷阱 / Esc / aria / 关闭后焦点还原——**默认焦点落在"取消"**（危险操作的安全默认
+是不做），Enter=确认 / Esc=取消与原生肌肉记忆一致；多枚确认串行排队，连点不出两层。
+删除/放弃修改/重跑/关窗四个语义各有标题键（ff.* 十键，zh+en 成对）。
+
+**这轮真正的硬骨头是 Back 键守卫，前后错了两次，都靠真机量出来：**
+① 第一版守卫在 resolve() 里调 `navIsDirty()`——hashchange 跑的时候 URL **已经改走了**，
+`plDirty/skDirty` 按 hash 自判归属直接返回 false，守卫整个哑掉（实测：退 back 无弹窗、
+改动被重绘冲掉）。修法：`plDirty(h)/skDirty(h)/navIsDirty(h)` 接受**出发地 hash** 覆写，
+resolve 用 `LAST_VIEW` 问 `navGuardOwns(from)`（路由知识归 editor.js 所有）。
+② 第二版修完弹窗通了，取消后改动却回到基线——`GUARD_SKIP` 的短路检查嵌在
+"正离开编辑器"的条件里，而摆回 hash 那一轮 `target === LAST_VIEW` 条件不成立，skip 被
+绕过、照常全量重渲染。修法：skip 检查提到条件外，最先短路。
+③ 顺带一个隐蔽事实：**editor.js 整体在闭包里**（它处处显式 `window.xxx =`），
+`navIsDirty` 是私有的——app.js 里 `window.navIsDirty ? … : false` 永远走 false 分支。
+已显式挂 `window.navIsDirty`。**"显式挂载"不是风格偏好，是文件可见性契约。**
+
+测试同步升级：`test_update_flow_has_no_native_confirm_dialog` 只盯三个函数，等于给没进
+清单的地方发通行证——改成**全前端禁令**（去注释后零 `confirm(`），另钉 ffAsk 的结构契约
+（modal 类名 / data-safe-focus / data-dialog-close / 进 index.html）。
+**真机验证过的路径**：删除流（弹窗→Esc/遮罩取消→确认删除+toast）、连点只出一层、
+脏编辑器拦真链接（取消留页改动在、确认放行）、Back 键全生命周期、footCycle 换主题拦截；
+**没验**：winClose 的确认（浏览器态无 pywebview 桥，窗口按钮本就隐藏）。
+
+**模块七.4 依赖漏洞扫描**：pip-audit 对 requirements.txt 全量扫——**无已知漏洞**。
+（坑：pip_requirements_parser 对带中文注释的 requirements.txt 按 GBK 解码会炸；
+用纯 ASCII 等价清单审计，包集合一致。）**模块八**：runs 列表本就有 `LIMIT 50`
+（db.py list_runs），统计走全表聚合 SQL，无需再加。**模块七.3**：两处 uvicorn 均绑
+`127.0.0.1`（run.py:118 / loom_launch.py:175），无对外暴露。**模块十一**：新增
+`CHANGELOG.md`（与 Release notes 同源，不编造）。
+
 **2026-09-28 这一轮全是下载页与图标，没动软件运行时**（所以不需要发版，改了就直接上线）：
 ① 图标 J 的字标从**三个矩形拼**改成**一条带两个弯的中心线**（竖笔 → 底弯 r16 → 横脚 → 钩部 r12 → 平切收口，
 笔画宽 16），直角钩那个"往回上一格"的台阶就是用户嫌丑的地方；16~40 五档继续硬像素，改成钩尖收短一档 +
