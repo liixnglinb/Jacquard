@@ -152,6 +152,10 @@
   --on-accent:var(--ink-inv);
   --on-solid:#FFFFFF;
   --good:var(--st-done);   --good-soft:var(--st-done-bg);
+  /* toast 的 ok/err 底色单独立档：亮色下白字直接压语义色实算 3.77/3.76，
+     承载 13px 文案不达 AA(4.5)，按 §0.9.3 把这一个承载面加深到过线。 */
+  --toast-ok-bg:color-mix(in oklab, var(--st-done) 80%, #00240f);
+  --toast-err-bg:color-mix(in oklab, var(--st-failed) 80%, #3d0000);
   --bad:var(--st-failed);  --bad-soft:var(--st-failed-bg);
   --warn:var(--st-waiting);--warn-soft:var(--st-waiting-bg);
   --shadow-composer:var(--shadow-sm);
@@ -216,6 +220,8 @@ html[data-theme="dark"]{
   --shadow-pop:0 24px 48px -16px rgba(0,0,0,.85),0 6px 16px -8px rgba(0,0,0,.6);
 
   --on-solid:#0E1512;
+  --toast-ok-bg:var(--st-done);
+  --toast-err-bg:var(--st-failed);
   --chart-1:#4D8BF7; --chart-2:#4CC77E; --chart-3:#9B87FF;
   --chart-4:#FF6B5E; --chart-5:#F0A840; --chart-6:#3FC8D4;
 }
@@ -946,6 +952,9 @@ body.up-on .up-card{opacity:1;transform:translate(-50%,-50%);pointer-events:auto
 .pf-op-more .ic{width:13px;height:13px}
 .pf-empty{padding:22px 14px;text-align:center;border:1px dashed var(--line);border-radius:var(--r-2);
   color:var(--ink-4);font-size:var(--fs-sub)}
+/* 首运行的空状态：要有去处（一个主按钮），纵向排、留足呼吸 */
+.home-empty{display:flex;flex-direction:column;align-items:center;gap:var(--sp-4);padding:var(--sp-8) var(--sp-4)}
+.home-empty p{margin:0}
 .empty{padding:30px 14px;text-align:center;border:1px dashed var(--line);border-radius:var(--r-3);color:var(--ink-3)}
 .em{font-size:var(--fs-h2);display:block;margin-bottom:6px;opacity:.5}
 
@@ -1866,8 +1875,8 @@ html[data-theme="light"] .modal{background:rgba(20,20,20,.32)}
   font-size:var(--fs-sub);box-shadow:var(--shadow-pop);opacity:0;pointer-events:none;
   transition:transform var(--dur-base) var(--ease),opacity var(--dur-base) var(--ease)}
 .toast.show{opacity:1;transform:translate(-50%,0);pointer-events:auto}
-.toast.ok{background:var(--st-done);color:var(--on-solid)}
-.toast.err{background:var(--st-failed);color:var(--on-solid)}
+.toast.ok{background:var(--toast-ok-bg);color:var(--on-solid)}
+.toast.err{background:var(--toast-err-bg);color:var(--on-solid)}
 
 .checkpoint-banner{display:flex;align-items:flex-start;gap:var(--sp-4);padding:var(--sp-4);
   background:var(--st-waiting-bg);border:1px solid var(--st-waiting);border-radius:var(--r-4);

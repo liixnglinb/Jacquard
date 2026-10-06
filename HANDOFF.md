@@ -230,6 +230,36 @@ resolve 用 `LAST_VIEW` 问 `navGuardOwns(from)`（路由知识归 editor.js 所
 `127.0.0.1`（run.py:118 / loom_launch.py:175），无对外暴露。**模块十一**：新增
 `CHANGELOG.md`（与 Release notes 同源，不编造）。
 
+**1.3.4（2026-10-05 第五轮，模块九~十二）立起 E2E 基线 + 空状态去处 + 两处收尾。**
+① **E2E 冒烟进测试基线**（`tests/e2e_smoke.mjs` + `tests/test_e2e_smoke.py`）：真起服务、
+   真开 Edge 走完"首运行空状态 → API 建档 → 编排器脏改的 Back 守卫全生命周期 →
+   删除确认流全程 → 全程控制台零错误"。数据走 `FF_DATA_DIR` 指进 pytest 的 tmp_path
+   （**这个 env 只在源码态被读**，app/paths.py，打包态永远用 data/，不存在误指）。
+   依赖 playwright-core：本机用 junction 接到别仓库的 node_modules（`node_modules/`
+   已 ignore，接法见 README），缺 node/依赖时该用例**自动跳过并给接法**，不挂红。
+   写它的过程里被自家基建咬了两口：run.py 起服务后 `.tk-card` 等 20s 不来——
+   **首运行根本不渲染输入台**（见②）；判脏与建档都要服务端真校验（步骤 skill 必须存在）。
+② **首运行空状态补去处**（模块一.2 的欠账，用户定过"空状态要有去处"）：全新数据目录
+   的首页原来只有一句"还没有流程，先创建一个"，没有按钮没有输入台，新用户死路。
+   现在补 `nav.go('pipeline-edit/new')` 的主按钮——与工作流页同一入口，不另开第二个；
+   输入台仍只在有流程时渲染（tkStageHtml 需要选中一条流程，空列表硬渲染=假控件）。
+③ **亮色 toast 的 ok/err 对比度**（上轮 P3 未精测项）：白字压 --st-done/--st-failed
+   实算 3.77/3.76，不达 AA。立 `--toast-ok-bg/--toast-err-bg` 两枚令牌（亮色
+   color-mix 加深、暗色直用语义色），规则只引用令牌——第一版直接在规则里写 hex，
+   被 `test_no_hardcoded_hex_outside_token_blocks` 当场拦下（该闸只认多行
+   :root/html[ 块，单行规则里的 hex 会被判）。
+④ **`_add_column` 标识符闸**（audit P3）：三处 f-string DDL 的表名/列名过
+   `^[A-Za-z_][A-Za-z0-9_]*$`。
+⑤ **安装器核查**（模块十）：数据目录卸载刻意保留+卸载页明示、`CloseApplications=no`
+   与退出钩子在位；AppId 非 GUID 格式但**刻意不动**（动了孤立已装用户的卸载条目）。
+   一个**决策点待用户拍**：要不要在卸载页加"连数据一起删"的选项（删用户数据必须点头）。
+⑥ **README**：端到端测试接法、FAQ（SmartScreen/数据位置/端口占用/更新失败/杀软）、
+   数据流与扩展点。
+
+**E2E 的边界照实记**：它跑的是源码态 + Chromium 内核（WebView2 同核但不等价）；
+打包态、无边框窗口、pywebview 桥不在覆盖内。上轮的 winClose 确认在浏览器态无法触发
+（无桥时窗口按钮隐藏），代码过目未真点。
+
 **2026-09-28 这一轮全是下载页与图标，没动软件运行时**（所以不需要发版，改了就直接上线）：
 ① 图标 J 的字标从**三个矩形拼**改成**一条带两个弯的中心线**（竖笔 → 底弯 r16 → 横脚 → 钩部 r12 → 平切收口，
 笔画宽 16），直角钩那个"往回上一格"的台阶就是用户嫌丑的地方；16~40 五档继续硬像素，改成钩尖收短一档 +

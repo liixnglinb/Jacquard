@@ -46,6 +46,37 @@ python run.py --auto-kill     # 端口被旧进程占用时自动释放
 python -m pytest -q
 ```
 
+### 端到端冒烟（可选，但推荐接上）
+
+`tests/test_e2e_smoke.py` 会真起一个服务（数据目录指进临时沙箱，不碰你的
+`modex-data/`），用 Edge 真浏览器走一遍：首运行空状态 → API 建技能与流程 →
+编排器脏改后的 Back 键守卫（取消保留输入/确认放行）→ 删除确认浮层全程，
+并断言全程控制台零错误。缺 node 或 playwright-core 时该用例自动跳过，不挂红。
+
+一次性接法（把 `node_modules/playwright-core` 接到你机器上任何一份
+playwright-core，例如某个装过 playwright 的项目里）：
+
+```bat
+mkdir node_modules 2>nul
+mklink /J node_modules\playwright-core "<playwright-core 所在目录>"
+```
+
+接好后照常 `python -m pytest -q`，E2E 会随全量一起跑。
+
+## 常见问题（FAQ）
+
+- **SmartScreen 提示"未知发布者"**：安装包暂未做代码签名（买证书是付费决定），
+  点"更多信息 → 仍要运行"即可。
+- **装在哪 / 数据在哪**：程序在 `%LOCALAPPDATA%\Programs\Loom`，数据（流程、产物、
+  自建技能、SQLite）在安装目录的 `data\`。升级覆盖安装不动它，**卸载也保留它**，
+  重装会自动继续读取。
+- **端口被占**：软件只绑 `127.0.0.1`；8000 被别的程序长期占用时安装版会自动换端口，
+  源码态用 `python run.py --port 8001`。
+- **更新失败**：左下角胶囊会显示具体原因；也可到 设置 → 更新 手动「重新检查」。
+  下载走腾讯云 COS，GitHub Release 是第二下载源。
+- **杀软报毒 / 启动无窗口**：PyInstaller 打包的未签名 exe 偶被误报；若被拦截，
+  将安装目录加入白名单后重装。
+
 ## 目录结构
 
 ```
@@ -64,6 +95,20 @@ upload_cos.py     上传安装包与 latest.json 到腾讯云 COS
 
 数据目录：源码运行在 `modex-data/`，安装后在 exe 同级 `data/`
 （SQLite + 工作区 + 自建技能 + 导出件）。升级不覆盖它，卸载也不删它。
+测试需要隔离数据时设 `FF_DATA_DIR` 指到临时目录（仅源码态生效）。
+
+## 数据流与扩展点（给接手者）
+
+- **前端**：`static/` 原生 JS，无框架。`app.js` 持全局状态 `ST`，唯一渲染出口是
+  `#view`；导航走 `nav.go → NAV_CHAIN 串行队列 → resolve()`（未保存守卫在 go 与
+  hashchange 两口都有，判脏用"出发地 hash"）。所有插值过 `esc()`，确认走
+  `ffAsk()`（ff-confirm.js，结构契约见 voyra-dialogs.js 顶部注释）。
+- **后端**：FastAPI `app/main.py` 只做路由与参数校验；业务在 `db.py`（SQLite WAL）、
+  `runner.py`（SSE 执行引擎）、`agents.py`（claude/codex CLI 适配，argv 列表起进程）。
+  改设置表结构时把退役键加进 `db.RETIRED_SETTINGS`；改 runs 列先过 `update_run`
+  的白名单。
+- **不变量**：设计令牌只有 `style.css` 一处（与 `voyra-foundation.css` 的相等关系由
+  测试钉住）；`tests/test_static_contract.py` 是改前端前必读的契约清单。
 
 ## 打包与发布
 

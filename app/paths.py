@@ -16,7 +16,10 @@ if FROZEN:
     DATA_DIR = INSTALL_ROOT / "data"
 else:
     BASE = Path(__file__).resolve().parent.parent
-    DATA_DIR = BASE / "modex-data"
+    # FF_DATA_DIR：测试专用。E2E 要在一个临时沙箱里真增真删（建流程、删除、
+    # 脏编辑器守卫），不能碰开发机的 modex-data。只认源码态；打包态不读它，
+    # 装出去的软件永远用 data/。
+    DATA_DIR = Path(os.environ["FF_DATA_DIR"]) if os.environ.get("FF_DATA_DIR") else BASE / "modex-data"
 
 STATIC_DIR = BASE / "static"
 DB_DIR = DATA_DIR

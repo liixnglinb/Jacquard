@@ -59,3 +59,6 @@ release/
 
 # AI 会话工具状态目录（不提交）
 .qoder-credits/
+
+# node 依赖只作 E2E 的本地接驳（junction 指向本机 playwright-core），不入库
+node_modules/

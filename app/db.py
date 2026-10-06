@@ -5,7 +5,7 @@
 (key, label, skill, model, out, checkpoint, role)。无工作流实例 ——
 本软件只负责「编排流程 + 管理 skill」，执行交给外部 CLI。
 """
-import sqlite3, json, time
+import sqlite3, json, re, time
 from pathlib import Path
 from . import paths
 
@@ -45,6 +45,11 @@ def _now():
 
 def _add_column(c, table, col, ddl):
     """轻量列迁移：老库缺列时补上。"""
+    # 这几处 f-string 把表名/列名拼进 DDL（调用点全是本文件的固定迁移，值不过
+    # 用户输入）。闸是给将来的人：标识符写歪立刻炸，而不是拼出一条怪 DDL。
+    for ident in (table, col):
+        if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", ident):
+            raise ValueError(f"非法标识符：{ident!r}")
     cols = {r[1] for r in c.execute(f"PRAGMA table_info({table})")}
     if col not in cols:
         c.execute(f"ALTER TABLE {table} ADD COLUMN {ddl}")
