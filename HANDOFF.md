@@ -280,6 +280,19 @@ main，v1.3.4 的 GitHub Release 说明里加了一段源码备注；**没有重
 ③ 上一轮的 tag≠产物事故在本版**自然闭合**：main（6665de6 起）就是完整源码，
    v1.3.5 的 tag 从 main 打，exe 由同一棵树构建。
 
+**1.3.6（2026-10-05 第七轮）卸载页加"连数据一起删"，用户点头的决策点落地。**
+`installer.iss`：卸载前先 KillApp（与安装期同一份温和等待逻辑，抽成共用过程），
+然后 `mbConfirmation + MB_YESNO` 问一句——**措辞把"不可恢复"说在前面**；点"是"才置
+`RemoveData := True`，`usPostUninstall` 里 `DelTree({app}\data)`；默认路径（No/一路
+下一步）与旧版完全一致：数据保留 + 原提示文案。`[UninstallDelete]` 段没动
+（清 boot-error.log 是既有的无害清理）。
+守卫：`test_uninstall_only_deletes_data_after_explicit_confirmation` 四道——
+DelTree 全文件只许一次且只指 `{app}\data`、必须在 KillApp 之后（SQLite/WAL 被占会
+留残骸）、必须在 `if RemoveData then` 分支里、确认框必须含"不可恢复"；
+`[UninstallDelete]` 不许删 data 目录本身（清一枚 boot-error 日志是既有无害项）。
+写测试时自己绊了自己两次：断言"行内含 data 字样"会把 boot-error.log 和注释一起误伤
+——判据要落在**意图**上（不删目录本身），不是落在子串上。
+
 **E2E 的边界照实记**：它跑的是源码态 + Chromium 内核（WebView2 同核但不等价）；
 打包态、无边框窗口、pywebview 桥不在覆盖内——但 1.3.5 起关窗守卫用桥桩测到了
 "确认才调 win_close"这一步（真窗口不会关，桥是桩）。

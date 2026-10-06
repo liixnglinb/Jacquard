@@ -267,3 +267,34 @@ def test_apply_is_one_shot(monkeypatch, udir):
     second = updater.apply_update()
     assert second.get("ok"), second
     assert len(spawned) == 1, f"起了 {len(spawned)} 个安装器"
+
+
+def test_uninstall_only_deletes_data_after_explicit_confirmation():
+    """卸载页的"连数据一起删"必须显式点头，且删除动作被三道闸围住。
+
+    数据目录里是用户的流程、产物与自建技能——默认路径（一路点下一步）永远保留。
+    措辞必须把"不可恢复"说在前面；DelTree 只允许出现一次、只允许指向 {app}\data，
+    且必须 (a) 在 KillApp 之后（SQLite/WAL 被进程占着会留下残骸）、
+    (b) 在 if RemoveData then 的确认分支里。[UninstallDelete] 段不许碰 data。"""
+    iss = (Path(__file__).resolve().parent.parent / "installer.iss").read_text(encoding="utf-8")
+    assert iss.count("DelTree(") == 1, "DelTree 只许出现一次（删数据只有这一个口子）"
+    tree_line = [ln for ln in iss.splitlines() if "DelTree(" in ln][0]
+    assert "{app}\data" in tree_line, f"DelTree 的目标不是 data 目录：{tree_line.strip()}"
+    # (a) 顺序：KillApp 调用先于 DelTree
+    assert iss.index("KillApp();") < iss.index("DelTree("), \
+        "删除数据前没有先关程序——SQLite/WAL 被占用会删不干净"
+    # (b) 确认分支：RemoveData 默认 False，只有 MB_YESNO 的 IDYES 分支置 True
+    assert "RemoveData: Boolean;" in iss
+    assert iss.count("RemoveData := True") == 1
+    guard = iss.split("if RemoveData then")
+    assert len(guard) == 2 and "DelTree(" in guard[1], "DelTree 不在确认分支里"
+    ask = iss.split("mbConfirmation, MB_YESNO")[0]
+    assert "不可恢复" in ask, "确认框没把'删除后不可恢复'说在前面"
+    # 默认路径的提示文案必须还在（保留数据是默认承诺）
+    assert "重装后会自动继续读取" in iss
+    # [UninstallDelete] 段不许删数据目录本身（清一枚 boot-error 日志文件是既有的、无害的）
+    ud = [ln for ln in iss.split("[UninstallDelete]")[1].split("[Code]")[0].splitlines()
+          if ln.strip() and not ln.strip().startswith(";")]
+    ud_text = "\n".join(ud)
+    assert "DelTree" not in ud_text and 'Name: "{app}\\data"' not in ud_text, \
+        f"[UninstallDelete] 又去删数据目录了：{ud}"

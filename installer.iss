@@ -3,8 +3,9 @@
 ; 设计要点：
 ;   1. 装到 %LOCALAPPDATA%\Programs\Loom —— 不需要管理员、不弹 UAC
 ;   2. 数据在 {app}\data（SQLite + 工作区 + 自建 skill），升级覆盖安装不动它，
-;      卸载也不删它 —— 用户的流程和产物比程序值钱
-;   3. 安装前温和关闭正在运行的 Loom（先不带 /F，等不动再强杀）
+;      卸载**默认也不删**——卸载前会问一句，用户明确点头才连数据一起删
+;      （删除不可恢复，所以默认路径永远安全，DelTree 只在确认分支里）
+;   3. 安装/卸载前都温和关闭正在运行的 Loom（先不带 /F，等不动再强杀）
 ;   4. 卸载后残留的 data/ 在卸载页给一句明确提示，别让人以为数据没了
 
 #define MyAppName "织流 Jacquard"
@@ -64,34 +65,61 @@ Filename: "{app}\{#MyAppExe}"; Description: "立即启动 {#MyAppName}"; \
 Type: files; Name: "{app}\data\boot-error.log"
 
 [Code]
-procedure CurStepChanged(CurStep: TSetupStep);
+var
+  RemoveData: Boolean;   /* 卸载时是否连数据一起删；默认 False，只有用户在
+                            确认框里点了"是"才为 True —— 见 CurUninstallStepChanged */
+
+/* 安装与卸载共用：温和关闭正在运行的 Loom（先不带 /F，等不动再强杀）。
+   数据文件（SQLite/WAL）被进程占着时 DelTree 会留下残骸，所以删除数据前必须先关。 */
+procedure KillApp();
 var
   ResultCode: Integer;
   I: Integer;
 begin
-  if CurStep = ssInstall then
+  Exec(ExpandConstant('{cmd}'), '/C taskkill /IM {#MyAppExe} /T',
+       '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+  for I := 1 to 6 do
   begin
-    Exec(ExpandConstant('{cmd}'), '/C taskkill /IM {#MyAppExe} /T',
-         '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
-    for I := 1 to 6 do
+    if Exec(ExpandConstant('{cmd}'),
+            '/C tasklist /FI "IMAGENAME eq {#MyAppExe}" | find /I "{#MyAppExe}"',
+            '', SW_HIDE, ewWaitUntilTerminated, ResultCode) then
     begin
-      if Exec(ExpandConstant('{cmd}'),
-              '/C tasklist /FI "IMAGENAME eq {#MyAppExe}" | find /I "{#MyAppExe}"',
-              '', SW_HIDE, ewWaitUntilTerminated, ResultCode) then
-      begin
-        if ResultCode <> 0 then
-          Break;              // find 没匹配到 = 已经退出了
-      end;
-      Sleep(500);
+      if ResultCode <> 0 then
+        Break;              // find 没匹配到 = 已经退出了
     end;
-    Exec(ExpandConstant('{cmd}'), '/C taskkill /IM {#MyAppExe} /T /F',
-         '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+    Sleep(500);
   end;
+  Exec(ExpandConstant('{cmd}'), '/C taskkill /IM {#MyAppExe} /T /F',
+       '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+end;
+
+procedure CurStepChanged(CurStep: TSetupStep);
+begin
+  if CurStep = ssInstall then
+    KillApp();
 end;
 
 procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
 begin
+  if CurUninstallStep = usUninstall then
+  begin
+    KillApp();
+    /* 先关程序再问：问的时候用户还能改主意，但程序已经停了 —— 数据文件没被
+       占用，两条路（删/留）后面都走得通。措辞必须把"不可恢复"说在前面。 */
+    if MsgBox('是否同时删除数据目录？' #13#10 #13#10 +
+              '里面是你的流程、运行产物与自建技能，删除后不可恢复。',
+              mbConfirmation, MB_YESNO) = IDYES then
+      RemoveData := True;
+  end;
   if CurUninstallStep = usPostUninstall then
-    MsgBox('已卸载。你的流程、产物与自建技能仍保留在 data 文件夹里，' +
-           '重装后会自动继续读取。', mbInformation, MB_OK);
+  begin
+    if RemoveData then
+    begin
+      DelTree(ExpandConstant('{app}\data'), True, True, True);
+      MsgBox('已卸载，数据目录已一并删除。', mbInformation, MB_OK);
+    end
+    else
+      MsgBox('已卸载。你的流程、产物与自建技能仍保留在 data 文件夹里，' +
+             '重装后会自动继续读取。', mbInformation, MB_OK);
+  end;
 end;
