@@ -9,11 +9,15 @@
 - 局部修订 / 从此步重跑：都走同一个智能体引擎
 - 取消：置 cancel_flag，步骤间隙退出
 """
+import base64
 import json
 import re
+import shutil
 import threading
 import time
 import uuid
+import xml.etree.ElementTree as ET
+import zipfile
 from datetime import date
 from pathlib import Path
 
@@ -187,6 +191,8 @@ def file_kind(name: str) -> str:
         return "pdf"
     if ext in _TEXT_EXT:
         return "text"
+    if ext in (".pptx", ".docx"):
+        return "office"
     return "binary"
 
 
@@ -198,6 +204,8 @@ def read_workspace_file(run_id: str, rel: str, max_bytes: int = _PREVIEW_MAX_BYT
     size = f.stat().st_size
     kind = file_kind(f.name)
     out = {"path": str(rel), "kind": kind, "bytes": size, "truncated": False, "text": ""}
+    if kind == "office":
+        return read_office_preview(run_id, rel)
     if kind != "text":
         return out
     with f.open("rb") as fh:
@@ -207,6 +215,178 @@ def read_workspace_file(run_id: str, rel: str, max_bytes: int = _PREVIEW_MAX_BYT
     # 结果"截断后的正文"反而比上限还长。
     out["text"] = raw[:max_bytes].decode("utf-8", errors="ignore")
     return out
+
+
+# ---------------- Office 分镜预览（路线 B：纯标准库拆 OOXML，零新依赖） ----------------
+# pptx/docx 本质是 zip；预览只抽文字与图片，不做任何还原排版 —— 那是 LibreOffice
+# 的事（方案 A，几百 MB 外部依赖，用户没批）。解析对象：
+#   pptx  ppt/slides/slideN.xml 的 <a:p>/<a:t>（按文档顺序成段），
+#         图片经 ppt/slides/_rels/slideN.xml.rels 的 Target 指到 ppt/media/*
+#   docx  word/document.xml 的 <w:p>/<w:t> 整篇成一段；图片在 word/_rels/ 下
+_ZIP_MEMBERS_MAX = 600                      # 成员数：防目录爆炸
+_ZIP_UNCOMPRESSED_MAX = 64 * 1024 * 1024    # 解压后总量：防压缩炸弹
+_OFFICE_IMG_BYTES_MAX = 1_500_000           # 单图超 1.5MB 不内嵌（预览不是下载）
+_OFFICE_IMG_INLINE_MAX = 12                 # 内嵌张数上限，超出只报数量
+_OFFICE_TEXT_MAX = 200_000                  # 抽出的文字上限（预览不是全文导出）
+
+_A = "{http://schemas.openxmlformats.org/drawingml/2006/main}"
+_W = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}"
+_R = "{http://schemas.openxmlformats.org/package/2006/relationships}"
+_IMG_EXT = {".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".gif": "image/gif"}
+
+
+def _xml_safe(data: bytes) -> bytes:
+    """工作区里的 office 文件是智能体产物 = 不可信输入。标准库 ET 不解析 DTD/
+    未定义实体（外部实体本就不会去取），这里再把声明了 DOCTYPE/ENTITY 的包
+    直接拒掉——实体膨胀和外部实体两类经典向量在入口掐死。"""
+    if b"<!DOCTYPE" in data[:4096] or b"<!ENTITY" in data[:4096]:
+        raise ValueError("包内 XML 带 DTD/实体声明，拒绝解析")
+    return data
+
+
+def _zip_guarded(path):
+    """打开工作区里的 office 包并过两道防压缩炸弹的闸。抛 ValueError 给上层兜。"""
+    try:
+        z = zipfile.ZipFile(path)
+    except zipfile.BadZipFile:
+        raise ValueError("不是有效的 Office 文件（zip 结构损坏）")
+    infos = z.infolist()
+    if len(infos) > _ZIP_MEMBERS_MAX:
+        z.close()
+        raise ValueError(f"包内成员过多（{len(infos)}），不做预览")
+    if sum(i.file_size for i in infos) > _ZIP_UNCOMPRESSED_MAX:
+        z.close()
+        raise ValueError("解压后超过 64MB，不做预览")
+    return z
+
+
+def _office_members(z):
+    """把成员名按 (是否 slide/document 正文, 序号) 排好。"""
+    names = set(z.namelist())
+    slides = []
+    for n in names:
+        m = re.match(r"^ppt/slides/slide(\d+)\.xml$", n)
+        if m:
+            slides.append((int(m.group(1)), n))
+    slides.sort()
+    return names, slides
+
+
+def _para_text(root, p_tag, t_tag):
+    out = []
+    for p in root.iter(p_tag):
+        line = "".join((t.text or "") for t in p.iter(t_tag)).strip()
+        if line:
+            out.append(line)
+    return "\n".join(out)
+
+
+def _slide_images(z, names, slide_num, count):
+    """按 slide 的 rels 找它引用的图片，逐张内嵌（小图）或计数（大图/超量）。"""
+    rels = f"ppt/slides/_rels/slide{slide_num}.xml.rels"
+    imgs, omitted = [], 0
+    if rels not in names:
+        return imgs, omitted
+    root = ET.fromstring(_xml_safe(z.read(rels)))
+    for rel in root.iter(f"{_R}Relationship"):
+        target = rel.get("Target", "").replace("\\", "/")
+        base = target.rsplit("../", 1)[-1]          # ../media/x.png → media/x.png
+        member = "ppt/" + base if rel.get("Target", "").startswith("../") else target.lstrip("/")
+        ext = Path(member).suffix.lower()
+        if ext not in _IMG_EXT or member not in names:
+            continue
+        if len(imgs) >= _OFFICE_IMG_INLINE_MAX:
+            omitted += 1
+            continue
+        data = z.read(member)
+        if len(data) > _OFFICE_IMG_BYTES_MAX:
+            omitted += 1
+            continue
+        imgs.append("data:" + _IMG_EXT[ext] + ";base64," +
+                    base64.b64encode(data).decode("ascii"))
+    count[0] += len(imgs) + omitted
+    return imgs, omitted
+
+
+def read_office_preview(run_id: str, rel: str) -> dict:
+    """pptx/docx 的分镜预览：只抽文字与图片，不还原排版。解析失败给可读错误，
+    由前端落到"给下载"的兜底 —— 预览是加分项，绝不能因为解析挂掉把文件弄丢。"""
+    f = ws_file(run_id, rel)
+    size = f.stat().st_size
+    out = {"path": str(rel), "kind": "office", "bytes": size, "truncated": False, "text": "",
+           "office": {"type": Path(rel).suffix.lower().lstrip("."), "slides": [],
+                      "mediaTotal": 0, "mediaInlined": 0, "truncated": False, "error": ""}}
+    ext = Path(f.name).suffix.lower()
+    seen_media = [0]
+    try:
+        with _zip_guarded(f) as z:
+            names, slides = _office_members(z)
+            if ext == ".pptx":
+                if not slides:
+                    out["office"]["error"] = "包里没有幻灯片（不是标准的 pptx）"
+                    return out
+                for num, name in slides:
+                    root = ET.fromstring(_xml_safe(z.read(name)))
+                    text = _para_text(root, f"{_A}p", f"{_A}t")[:_OFFICE_TEXT_MAX]
+                    imgs, omitted = _slide_images(z, names, num, seen_media)
+                    out["office"]["slides"].append(
+                        {"n": num, "text": text, "images": imgs, "omitted": omitted})
+            else:  # docx
+                root = ET.fromstring(_xml_safe(z.read("word/document.xml")))
+                text = _para_text(root, f"{_W}p", f"{_W}t")[:_OFFICE_TEXT_MAX]
+                imgs, omitted = [], 0
+                # docx 的图片挂在 word/_rels/document.xml.rels 下，复用同一套 rels 解析
+                rels = "word/_rels/document.xml.rels"
+                if rels in names:
+                    rroot = ET.fromstring(_xml_safe(z.read(rels)))
+                    for r2 in rroot.iter(f"{_R}Relationship"):
+                        target = r2.get("Target", "").replace("\\", "/")
+                        member = "word/" + target.lstrip("./")
+                        ext2 = Path(member).suffix.lower()
+                        if ext2 not in _IMG_EXT or member not in names:
+                            continue
+                        if len(imgs) >= _OFFICE_IMG_INLINE_MAX:
+                            omitted += 1
+                            continue
+                        data = z.read(member)
+                        if len(data) > _OFFICE_IMG_BYTES_MAX:
+                            omitted += 1
+                            continue
+                        imgs.append("data:" + _IMG_EXT[ext2] + ";base64," +
+                                    base64.b64encode(data).decode("ascii"))
+                seen_media[0] += len(imgs) + omitted
+                out["office"]["slides"].append({"n": 1, "text": text, "images": imgs,
+                                                "omitted": omitted})
+    except ValueError as e:
+        out["office"]["error"] = str(e)
+        return out
+    except ET.ParseError:
+        out["office"]["error"] = "包内 XML 损坏，解析不了"
+        return out
+    out["office"]["mediaInlined"] = seen_media[0]
+    if out["office"]["slides"] and out["office"]["slides"][0]["text"] == "" \
+            and ext == ".docx" and not out["office"]["slides"][0]["images"]:
+        # 契约：error 非空时 slides 一定为空 —— 前端只看 error，留着半张空卡片
+        # 只会让"报错"和"有内容"同时成立。
+        out["office"]["slides"] = []
+        out["office"]["error"] = "文档里没有可抽取的正文"
+    return out
+
+
+def cleanup_orphan_workspaces() -> dict:
+    """删掉 orphan_workspaces() 报的那些目录。调用方（endpoint）必须先挡活跃运行：
+    孤儿=没有运行记录，理论上不会有活着的智能体在写；但运行记录被人为动过的
+    那一刻这个前提会破，所以 409 的闸放在入口，不在这里。"""
+    removed, failed, freed = [], [], 0
+    for o in orphan_workspaces():
+        d = paths.WORKSPACES_DIR / o["name"]
+        try:
+            shutil.rmtree(d)
+            removed.append(o["name"])
+            freed += o["bytes"]
+        except Exception as e:
+            failed.append({"name": o["name"], "err": str(e)})
+    return {"removed": removed, "failed": failed, "bytes": freed}
 
 
 _LOG_DIR = "_turn_logs"

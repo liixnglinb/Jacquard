@@ -133,12 +133,16 @@ def test_file_preview_classifies_by_extension(client, run_id, workspaces):
     ws = workspaces / run_id
     (ws / "fig.png").write_bytes(b"\x89PNG\r\n\x1a\n" + b"0" * 40)
     (ws / "paper.docx").write_bytes(b"PK\x03\x04" + b"0" * 40)
+    (ws / "data.xlsx").write_bytes(b"PK\x03\x04" + b"0" * 40)
     kinds = {f["path"]: f["kind"] for f in client.get(f"/api/runs/{run_id}/files").json()["files"]}
-    assert kinds["fig.png"] == "image" and kinds["paper.docx"] == "binary"
-    # 二进制只报类型，正文一律不给
+    assert kinds["fig.png"] == "image" and kinds["paper.docx"] == "office"
+    assert kinds["data.xlsx"] == "binary"
+    # office 走分镜预览，但原始正文一律不给；这枚假 docx 不是有效包，只报错不报内容
     d = client.get(f"/api/runs/{run_id}/files/paper.docx").json()
-    assert d["text"] == "" and d["bytes"] > 0
-    (ws / "fig.png").unlink(); (ws / "paper.docx").unlink()
+    assert d["kind"] == "office" and d["text"] == "" and d["bytes"] > 0
+    assert d["office"]["error"] and d["office"]["slides"] == []
+    for p in ("fig.png", "paper.docx", "data.xlsx"):
+        (ws / p).unlink()
 
 
 @pytest.mark.parametrize("rel", [

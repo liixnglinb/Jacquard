@@ -722,6 +722,16 @@ def run_file_detail(run_id: str, fpath: str):
         return JSONResponse({"detail": f"读取失败：{e}"}, 500)
 
 
+@app.post("/api/workspaces/cleanup-orphans")
+def cleanup_orphan_workspaces():
+    """删掉统计页报的那些孤儿工作区。**删除不可恢复**：入口先挡活跃运行——
+    孤儿=没有运行记录，但记录被人为动过的瞬间"没人用"这个前提会破；
+    另外清理与正在跑的智能体绝不能并发。确认框在前端（ffAsk，写明不可恢复）。"""
+    if db.count_active_runs() > 0:
+        return JSONResponse({"detail": "有任务正在运行，等它们结束再清理"}, 409)
+    return runner.cleanup_orphan_workspaces()
+
+
 @app.get("/api/runs/{run_id}/artifacts")
 def run_artifacts(run_id: str):
     run = db.get_run(run_id)

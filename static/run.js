@@ -227,7 +227,7 @@ function wsRows(){
     </div>`;
   }).join('');
 }
-const WS_ICON = {image:'eye', pdf:'file', text:'file', binary:'package'};
+const WS_ICON = {image:'eye', pdf:'file', text:'file', office:'package', binary:'package'};
 
 function wsPaint(){
   const box = document.getElementById('runArts');
@@ -700,6 +700,28 @@ async function wsPaintBody(){
   if(tg) tg.hidden = !(kind === 'text' && /\.(md|markdown)$/i.test(path));
   if(kind === 'image'){ body.innerHTML = `<div class="ws-media"><img src="${url}" alt="${esc(path)}"></div>`; return; }
   if(kind === 'pdf'){ body.innerHTML = `<iframe class="ws-frame" src="${url}"></iframe>`; return; }
+  if(kind === 'office'){
+    /* pptx/docx 分镜预览（路线 B）：文字 + 小图按页出卡片；解析不了就落回
+       "给下载"的兜底 —— 预览是加分项，绝不能因为解析挂掉把文件弄丢。 */
+    const d = await _api(`/api/runs/${encodeURIComponent(RUN.id)}/files/${path.split('/').map(encodeURIComponent).join('/')}`)
+                .catch(() => null);
+    if(!d || d.detail || !d.office){ body.innerHTML = `<div class="lg-empty">${ico('package')}<span>${esc((d&&d.detail)||t('run.wsBinary'))}</span></div>`; return; }
+    const of = d.office;
+    if(of.error){ body.innerHTML = `<div class="lg-empty">${ico('package')}<span>${esc(of.error)}</span></div>`; return; }
+    // docx 是一整篇正文，套"第 N 页"的帽子会读成"第 1 页"这种假分页；只有 pptx 才标页码
+    const isDeck = of.type === 'pptx';
+    const cards = (of.slides||[]).filter(s => s.text || (s.images&&s.images.length)).map(s => `<div class="ws-slide">`
+      + (isDeck ? `<div class="ws-slide-n">${esc(t('run.deckPage',{n:s.n}))}</div>` : '')
+      + (s.text ? `<div class="ws-slide-t">${esc(s.text)}</div>` : '')
+      + ((s.images&&s.images.length) ? `<div class="ws-media">${s.images.map(u=>`<img src="${u}" alt="">`).join('')}</div>` : '')
+      + `</div>`).join('');
+    const omitted = (of.slides||[]).reduce((a,s)=>a+(s.omitted||0),0);
+    body.innerHTML = (cards
+      ? `<div class="ws-deck">${cards}</div>`
+      : `<div class="lg-empty">${ico('package')}<span>${esc(t('run.deckEmpty'))}</span></div>`)
+      + (omitted > 0 ? `<div class="muted-sm">${esc(t('run.deckOmitted',{n:omitted}))}</div>` : '');
+    return;
+  }
   if(kind !== 'text'){
     body.innerHTML = `<div class="lg-empty">${ico('package')}<span>${esc(t('run.wsBinary'))}</span></div>`;
     return;

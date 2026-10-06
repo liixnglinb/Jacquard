@@ -1744,6 +1744,9 @@ function secStats(){
           ? `<span class="st-state no"><i></i>${orphans.length} · ${esc(fmtBytes(orphanBytes))}</span>`
           : `<span class="st-state ok"><i></i>${esc(t('st.none'))}</span>`,
         'stats orphan leftover cleanup')
+      + (orphans.length
+          ? `<div class="st-cleanrow"><button class="st-btn st-btn-danger" onclick="stCleanupOrphans()">${ico('trash')} ${esc(t('st.cleanupBtn'))}</button></div>`
+          : '')
   ) + foot + `</div>`;
 }
 
@@ -1876,6 +1879,22 @@ window.stReload = async function(){
   if (st) ST.stats = st;
   secRepaint('stats');
   toast(t('st.reloaded'), true);
+};
+/* 只删「孤儿」—— 没有任何运行记录指向的工作区目录。删了不可恢复，所以确认框
+   里必须把数量和体积报出来；后端另有 409 挡活跃运行，这里把它的 detail 原样透出。 */
+window.stCleanupOrphans = async function(){
+  const orphans = (ST.stats || {}).orphans || [];
+  if (!orphans.length) return;
+  const bytes = orphans.reduce((a, o) => a + (o.bytes || 0), 0);
+  const ok = await window.ffAsk({danger: true, title: t('st.cleanupBtn'),
+    body: t('st.cleanupAsk', {n: orphans.length, size: fmtBytes(bytes)}),
+    ok: t('ff.delete')});
+  if (!ok) return;
+  const r = await post('/api/workspaces/cleanup-orphans').catch(e => ({detail: String(e)}));
+  if (r && r.detail){ toast(r.detail); return; }
+  toast(t('st.cleanupDone', {n: (r.removed || []).length, size: fmtBytes(r.bytes || 0)}), true);
+  if ((r.failed || []).length) toast(r.failed.map(x => x.name + ': ' + x.err).join('; '));
+  stReload();
 };
 
 function secAbout(){

@@ -1817,3 +1817,31 @@ def test_v11_i18n_pair_coverage():
     for key in ["tk.subDesc", "ed.unsavedGuard", "sk.searchPh", "sk.emptySelect", "sk.noDesc"]:
         n = UI_JS.count("'" + key + "'")
         assert n == 2, f"{key} 未中英成对（出现 {n} 次）"
+
+
+RUN_JS = (STATIC_DIR / "run.js").read_text(encoding="utf-8")
+
+
+def test_the_preview_toggle_actually_disappears():
+    """wsPaintBody 用 .hidden 收「渲染/原文」那组按钮，可 .ws-md-toggle 自己写了
+    display —— 作者样式顶掉 [hidden] 的 UA 默认值，图片/PDF/Office 的浮层里就挂着
+    两个点了没反应的按钮。和 .topbar / .ff-tip / .tlb-win 是同一个坑，第八次。"""
+    fn = RUN_JS.split("async function wsPaintBody()")[1].split("\n}\n")[0]
+    assert "tg.hidden = " in fn, "那组开关不再按文件类型收起"
+    assert ".ws-md-toggle[hidden]{display:none}" in CSS, "display 顶掉了 [hidden]，收不掉"
+
+
+def test_every_workspace_file_kind_has_an_icon_and_a_branch():
+    """后端多一种 kind（这次是 office），前端漏配图标或渲染分支都不会报错，
+    只会静默落到"看不了"的兜底文案 —— 这条把两端钉在一起。"""
+    runner_src = (STATIC_DIR.parent / "app" / "runner.py").read_text(encoding="utf-8")
+    kinds = set(re.findall(r'return "(\w+)"',
+                           runner_src.split("def file_kind(")[1].split("\n\n\ndef ")[0]))
+    assert kinds == {"image", "pdf", "text", "office", "binary"}, f"file_kind 的形状变了：{sorted(kinds)}"
+    icons = set(re.findall(r"(\w+)\s*:\s*'", RUN_JS.split("const WS_ICON = {")[1].split("};")[0]))
+    assert kinds <= icons, f"这些 kind 没有行图标：{sorted(kinds - icons)}"
+    body = RUN_JS.split("async function wsPaintBody()")[1]
+    for k in sorted(kinds - {"text", "binary"}):
+        assert f"kind === '{k}'" in body, f"wsPaintBody 没有 {k} 的渲染分支"
+    # text 和 binary 是"排除法"的两个出口：非 text 一律先落到"看不了"的兜底
+    assert "kind !== 'text'" in body, "binary 的兜底分支不在了"

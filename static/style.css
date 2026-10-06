@@ -1132,6 +1132,20 @@ select.pv-input{appearance:none;padding-right:28px;cursor:pointer;
 .ws-media img{max-width:100%;border-radius:var(--r-2);border:1px solid var(--line-soft)}
 .ws-frame{display:block;width:100%;height:100%;min-height:56vh;border:0;background:var(--bg-page)}
 .ws-md-toggle{display:inline-flex;gap:5px;margin-right:auto}
+/* 和 .topbar/.rz-layer 同一件事：display:flex 会顶掉 [hidden] 的默认 none，
+   不补这行，图片/PDF/Office 的预览浮层底部永远挂着两个没用的「渲染/原文」。 */
+.ws-md-toggle[hidden]{display:none}
+/* Office 分镜预览：pptx 一页一张卡、docx 整篇一张卡。只抽文字和图，不还原排版，
+   所以卡片是"读内容"的容器而不是"看版式"的画布 —— 与 .pf-empty/.st-panel 同一套
+   发丝边框材质，不给卡片填色：浮层本身就是抬起面，再填一层会在暗色里翻成"凹槽"。 */
+.ws-deck{display:flex;flex-direction:column;gap:10px;padding:14px 16px 20px}
+.ws-slide{border:1px solid var(--line);border-radius:var(--r-4);padding:13px 15px 15px}
+.ws-slide-n{font-family:var(--font-mono);font-size:var(--fs-micro);font-weight:600;
+  letter-spacing:.04em;color:var(--ink-2);font-variant-numeric:tabular-nums;margin-bottom:7px}
+.ws-slide-t{white-space:pre-wrap;font-size:var(--fs-sub);line-height:1.72;color:var(--ink);
+  word-break:break-word;overflow-wrap:anywhere}
+.ws-slide .ws-media{padding:10px 0 0;flex-wrap:wrap;gap:8px;justify-content:flex-start}
+.ws-slide .ws-media img{max-width:220px}
 
 /* markdown 预览：正文按阅读宽度排，标题走字号刻度的展示档 */
 .ws-md{padding:14px 18px 22px;font-size:var(--fs-body);line-height:1.78;color:var(--ink);
@@ -1383,6 +1397,8 @@ html[data-theme="light"] .modal{background:rgba(20,20,20,.32)}
 .st-btn:disabled{opacity:.42;cursor:not-allowed}
 .st-btn-danger{color:var(--bad)}
 .st-btn-danger:hover{border-color:var(--bad)}
+/* 清理按钮贴在孤儿那一行下面：右对齐，不占整行宽度，避免看着像又一个开关 */
+.st-cleanrow{display:flex;justify-content:flex-end;padding:10px 16px 12px}
 /* ---------- 运行台：右上角进程面板 ----------
    两态：展开是卡片，收起是一枚自适应宽度的胶囊（不是缩小的卡片）。
    图标按钮静止只有图标，指针落到那个按钮上才把文字标签撑开 —— 每个按钮各自展开，
