@@ -256,6 +256,15 @@ resolve 用 `LAST_VIEW` 问 `navGuardOwns(from)`（路由知识归 editor.js 所
 ⑥ **README**：端到端测试接法、FAQ（SmartScreen/数据位置/端口占用/更新失败/杀软）、
    数据流与扩展点。
 
+**1.3.4 发版事故与处置（照实记）**：打包时 git add 清单漏了 static/app.js（空状态
+入口），tag v1.3.4 指向的源码比发布的 exe 少这一处——exe 由工作树构建、内容完整
+（dist_app 里已 grep 验证），但 `tag ≠ 产物`。处置：其后的提交 6665de6 补齐源码并推
+main，v1.3.4 的 GitHub Release 说明里加了一段源码备注；**没有重发二进制**——按
+"换包必须连版本号一起换"的纪律，同版本覆盖比 tag 少一文件更糟。教训：暂存必须对照
+`git status --short` 全清单逐个点名，add 完看 `git diff --cached --stat` 再提交；
+上一轮还发生过 grep -c 命中 0 时退出码 1 把 && 链后面的 commit 短路掉的事——链式命令
+里每步都要显式核对，不能靠退出码顺延。
+
 **E2E 的边界照实记**：它跑的是源码态 + Chromium 内核（WebView2 同核但不等价）；
 打包态、无边框窗口、pywebview 桥不在覆盖内。上轮的 winClose 确认在浏览器态无法触发
 （无桥时窗口按钮隐藏），代码过目未真点。
