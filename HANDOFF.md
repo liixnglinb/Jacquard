@@ -304,6 +304,47 @@ tag==产物，没有重发二进制。
 打包态、无边框窗口、pywebview 桥不在覆盖内——但 1.3.5 起关窗守卫用桥桩测到了
 "确认才调 win_close"这一步（真窗口不会关，桥是桩）。
 
+**1.4.0（2026-10-06 第八轮）Office 分镜预览 + 孤儿工作区一键清理，顺手抓到第九次 `[hidden]` 失效。**
+
+**PPT/Word 预览走的是当初说的路线 B**：纯标准库拆 OOXML（`zipfile` + `ElementTree`），零新依赖，
+不还原排版。pptx 一页一张卡（`ppt/slides/slideN.xml` 的 `<a:p>/<a:t>` 成段，图片经
+`ppt/slides/_rels/slideN.xml.rels` 的 Target 找回 `ppt/media/*`）；docx 是 `word/document.xml`
+整篇一卡 —— **docx 不画页码**，"第 1 页"那种假分页会被读成文档真有一页。
+预览是加分项：解析不了就落到可读错误，绝不因为预览把文件弄丢，所以 `read_workspace_file`
+里 office 分支只换出口、不改"正文一律不给"那条老契约（`text` 恒空）。
+
+**工作区里的 office 文件是智能体产物 = 不可信输入**，四道闸：`_xml_safe` 直接拒带
+`DOCTYPE`/`ENTITY` 声明的包（实体膨胀与外部实体两类经典向量在入口掐死，标准库本来就不取
+外部实体，这是第二道不是唯一一道）、成员数 ≤600、解压后总量 ≤64MB、单图 >1.5MB 或每页
+>12 张不内嵌只报数量、正文 200K 字截断。`tests/test_workspace_preview.py` 22 条逐道钉住，
+含"页码按数字排不按字典排"（不排序会得到 1,10,2）。契约另有一条：**`error` 非空 ⇒ `slides`
+为空** —— docx 空正文那支第一版留了半张空卡片，测试当场红。
+
+**孤儿清理**：`POST /api/workspaces/cleanup-orphans`。入口先 `count_active_runs()>0` 挡 409 ——
+"孤儿=没有运行记录"这个前提在记录被人为动过的那一刻会破，清理与正在跑的智能体绝不能并发；
+确认框在前端（ffAsk danger），把数量和体积报在正文里并写明不可恢复；单个目录删失败只进
+`failed` 不中断其余（monkeypatch 造一支失败测这条，不靠 Windows 文件锁那种会翻脸的写法）。
+
+**真缺陷（本轮唯一一处既有代码的 bug）**：`.ws-md-toggle` 自己写了 `display:inline-flex`，
+把 `[hidden]` 的 UA 默认值顶掉了 —— 图片/PDF/Office 的预览浮层底部一直挂着两个点了没反应的
+「渲染/原文」。同一个坑在本仓库是**第九次**（前八条显式 none 数得出来：`.tlb-win`
+`.rz-layer` `.sb-update` `.up-mask` `.up-card` `.ff-tip` `.topbar` `.workspace-state`）。
+补 `.ws-md-toggle[hidden]{display:none}`，并加契约测试 —— 反向验过：删掉这行当场红。
+
+**卡片材质是按实测定的不是看出来的**：第一版给卡片填 `--bg-ctl`，暗色下卡片 #222 压在浮层
+#333 上 ΔL −8（读成凹槽，不是纸页），亮色下 #FFF 压 #FFF 完全同色。改成透明 + `--line`
+发丝边框 + `--r-4`（与 `.st-panel` 同一套材质），量到正文/页码标签对底分别是
+11.29·17.40 与 7.40·9.59，两套主题都过 AA；页码标签从 `--ink-4`（3.12，不达标）提到 `--ink-2`。
+
+**两条新契约**：`test_every_workspace_file_kind_has_an_icon_and_a_branch` 把
+`runner.file_kind` 的返回值集合与前端 `WS_ICON` + `wsPaintBody` 的分支钉在一起（这次加 office
+时就差点漏了图标，漏了不会报错，只会静默落兜底文案）；`test_the_preview_toggle_actually_disappears`
+守上面那条 `[hidden]`。基线 418 → **442**。
+
+**测试自己咬人的一处**：`test_launcher_ports` 里"bind 才算得出端口空不空"那条写死了 8123，
+本机验证服务占着同一口时它自己先炸（WinError 10048），报的是环境问题不是契约破了 —— 改走
+`_spare_port()`。全量在"验证服务还在跑"这个最不利条件下复跑过一遍，绿。
+
 **2026-09-28 这一轮全是下载页与图标，没动软件运行时**（所以不需要发版，改了就直接上线）：
 ① 图标 J 的字标从**三个矩形拼**改成**一条带两个弯的中心线**（竖笔 → 底弯 r16 → 横脚 → 钩部 r12 → 平切收口，
 笔画宽 16），直角钩那个"往回上一格"的台阶就是用户嫌丑的地方；16~40 五档继续硬像素，改成钩尖收短一档 +
@@ -528,12 +569,11 @@ COS 产物 key**（页里写死了 `Loom-1.2.6-setup.exe` 的直链）；`logo.s
 
 ## 1. 等用户点头才能动的（别自己拍板）
 
-1. **PPT / Word 的真渲染**。浏览器画不出 pptx/docx 版式，这是硬限制。三条路已摆给用户：
+1. **PPT / Word 的真渲染**。浏览器画不出 pptx/docx 版式，这是硬限制。**B 已在 1.4.0 落地**
+   （纯标准库拆 OOXML 的分镜预览：文字 + 小图按页出卡片，不还原排版）。剩下的两条要用户定：
    - A LibreOffice headless 转 PDF 再预览（保真最高，代价几百 MB 外部依赖）；
-   - B 纯 Python 拆 OOXML 做"分镜预览"（读 `ppt/slides/slideN.xml` 的文字 + `ppt/media/` 的图，按页出卡片；零新依赖，约 150–200 行 + 测试）；
    - C 让智能体产出 markdown/HTML 源，最后一步再转 pptx（实时预览直接复用现成的 markdown 渲染器）。
-   **推荐 B + C**。B 点头就能做；C 动的是流程和技能提示词，要用户定（软件已经不随包带任何流程模板和技能，
-   改的是用户自己建的那些）。
+   C 动的是流程和技能提示词，要用户定（软件已经不随包带任何流程模板和技能，改的是用户自己建的那些）。
 2. **要不要下线旧授权后端**。`functions/modelflow/*`、D1 `mflic`、`/modelflow/admin/` 还在部署、还能打开，但已无任何页面引用。下线不可逆（历史授权码数据会没）。
 3. **COS 保留策略**。`upload_cos.py` 现在**只列不删**（桶刚被清空过一次，删线上包必须是显式动作）。攒到两个版本以上再谈"留最近两个"。
 4. **代码签名**。安装包没签名（`installer.iss` 里没有 SignTool），Windows SmartScreen 会拦"未知发布者"。买证书是花钱的决定，要用户定。
@@ -639,7 +679,9 @@ COS 产物 key**（页里写死了 `Loom-1.2.6-setup.exe` 的直链）；`logo.s
 - **组件图鉴里有一行 mock 数据写着 `modelflow`**（`src/pages/UIKit.jsx` 的演示表格）。是组件示例不是产品入口，上一任故意没改。
 - **工作区面板是 3 秒轮询**，不是文件事件订阅（子进程直接写盘，没有可订阅的事件，Windows 上也不想在包里塞 watchdog）。一步里连写多个文件时面板最多滞后 3 秒 —— 设计取舍，不是 bug。
 - **侧栏折叠（图标轨道）在 ≤860px 不生效**，因为那个宽度下侧栏本来就横过来了。有意为之，见 `style.css` 里 `@media (min-width:861px)` 那一段。
-- **孤儿工作区只能看不能清。** 「使用统计」报得出孤儿数量和体积，但没有任何删文件的端点 —— 破坏性动作宁可先不给人按。要做「一键清理」得先和用户确认保留策略（第 1 节第 3 条）。
+- **孤儿工作区可以一键清了（1.4.0）**，但保留策略只有一条：删的是「没有任何运行记录指向」的目录，
+  有记录的目录连碰都不碰。破坏性动作有两道闸 —— 前端 ffAsk 写明数量/体积/不可恢复，后端有活跃运行时
+  直接 409。别把它改成"顺手清理旧运行"：删记录时工作区本应一起清掉，那是 `delete_run` 的活。
 - **设置页刻意没跟的 Codex 形态**：侧栏折叠没做设置项（品牌位点击 + Ctrl B 已经是两个入口，再加第三个违反「一个功能只留一个入口」）；明暗磁贴里那个小窗口是纯 CSS 假预览，不是真缩略图 —— 别为它去截图。
 
 ---
@@ -762,7 +804,7 @@ PYTHONUTF8=1 "$PY" make_icon.py
 # 2b. 只要 static/ 下的文件内容变过，就得 bump 缓存令牌，否则装好的人端的是旧缓存
 #     （改图标这一轮就是这么差点没生效：logo-sm.svg 换了字标，?v= 还是旧的）
 sed -i "s/?v=<旧令牌>/?v=$(git rev-parse --short=8 HEAD)/g" static/index.html
-grep -c "?v=$(git rev-parse --short=8 HEAD)" static/index.html   # 应为 10
+grep -c "?v=$(git rev-parse --short=8 HEAD)" static/index.html   # 应为 14（1.4.0 数过：3 图标 + 2 css + 1 logo + 8 js）
 
 # 2c. 打包
 PYTHONUTF8=1 "$PY" make_release.py --notes "这一版改了什么"
@@ -820,6 +862,14 @@ PYTHONUTF8=1 "<python>" -m pytest -q          # 全绿即可，不需网络
 - 圆角跟**嵌套层数**走：第一个圆角容器 `--r-4`，往里 `--r-3 → --r-2 → --r-1`；`--r-5` 只有四个批准例外（主输入台壳 / 对话框壳 / toast / 品牌底板）；胶囊档只给故意的胶囊和正圆（清单是 `NESTED_RADIUS` + `CIRCLE_50`，双向锁）。
 - 侧栏一个入口一件事：同一次运行不在「项目」和另一组「最近」里各出现一次；run 嵌在自己的流程下面。
 - 居中的浮层收起时必须 `pointer-events:none`（`inset:0` 的遮罩只用 opacity 收 = 全屏点不动）。
+- **`[hidden]` 会被作者样式顶掉。** 任何自己写了 `display:flex/grid/inline-flex` 的类，只要 JS 会
+  `el.hidden = true`，就必须配一条 `.那个类[hidden]{display:none}`。本仓库已经栽了九次（数得出来的
+  九条规则：`.tlb-win` `.rz-layer` `.sb-update` `.up-mask` `.up-card` `.ff-tip` `.topbar`
+  `.workspace-state` `.ws-md-toggle`）；第九次是本轮截图时才发现"图片/PDF/Office 的浮层底部一直挂着
+  两个没用的按钮"。新加带 display 的类又用 hidden 收，就再补一条并加断言。
+- **工作区多一种文件 kind 要三处同时接**：`runner.file_kind` 的返回值、`run.js` 的 `WS_ICON`、
+  `wsPaintBody` 的渲染分支。漏后两处不会报错，只会静默落到"看不了"的兜底文案 ——
+  `test_every_workspace_file_kind_has_an_icon_and_a_branch` 把三处钉在一起。
 - **`ws` 和 `cwd` 是两件事，不许合并。** `ws` 是 Jacquard 自己的落盘处（派生工作区 `run-<id>`：转录、给 claude 的系统提示文件、步骤产物），`cwd` 只是智能体在哪个目录干活（下任务时选的文件夹）。合成一个的后果是具体的：`delete_run` 里那句 `rmtree(workspace_dir(...))` 会去删用户的工程目录，而 codex 那路会往里面写 `AGENTS.md` 覆盖人家的项目记忆 —— 所以 codex + 自定义文件夹在 `start_run` 就直接拒（按 `resolve_engine` 判，和实际跑的那套同源）。
 - 派生工作区的目录名只有一份规则：`db.ws_dir_name(run_id)`。`runner._ws_path` 和 `create_run` 写进库的那个名字都必须走它 —— 从前是两份各写各的，库里存着 `run-run-<id>` 这种磁盘上根本不存在的名字。
 - 滑块读数说「14px」：`ROOT_PX`（app.js）必须等于 CSS 里 `html{font-size:calc(14px * …)}` 的那个 14，测试钉着。
