@@ -1000,7 +1000,12 @@ window.renderHome = async function(){
   window.__chrome = {title:'', icon:'', actions:''};
   if(!tpls.length){
     $('#view').innerHTML = `<div class="home-stage"><h1 class="tk-greet">${esc(t('tk.greet'))}</h1>
-      <div class="pf-empty">${esc(t('task.noFlow'))}</div></div>`;
+      <span class="tk-sub">${esc(t('tk.subDesc'))}</span>
+      <div class="pf-empty home-empty">
+        <p>${esc(t('task.noFlow'))}</p>
+        <!-- 空状态必须有去处：按钮与工作流页同一个「新建流程」入口，不另开第二个 -->
+        <button class="btn btn-primary" onclick="nav.go('pipeline-edit/new')">${ico('plus')} ${esc(t('home.newPipeline'))}</button>
+      </div></div>`;
     return;
   }
   const first = TK_PICK || tpls[0].name;
