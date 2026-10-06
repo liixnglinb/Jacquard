@@ -56,3 +56,6 @@ release/
 
 # AI 工具状态目录（.workbuddy 与 .workbuddy-ai 两个变体都覆盖，2026-10-04）
 .workbuddy*/
+
+# AI 会话工具状态目录（不提交）
+.qoder-credits/
