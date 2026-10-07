@@ -388,6 +388,20 @@ tag==产物，没有重发二进制。
 **测试基线 442 → 469**（新增 27：bundle 12、产物打包 10（1 条符号链接用例在本机跳过）、
 预算与对比 5）。全量在验证服务还开着的情况下复跑，绿。
 
+**1.5.0 发版落点（2026-10-07）**：源码 `eed3c50` → tag `v1.5.0`（仍按"先 push 再建 tag"的顺序）。
+包 `Loom-1.5.0-setup.exe` 36.5 MB（38,236,278 字节，sha256 `326bc604…`）。GitHub Release 与
+回读**一次过**，mirrors 直接进清单（没用到 `--skip-upload` 重跑）；COS 匿名核验 200 同字节；
+下载页 `e54a68e` 上线，6 处版本号、体积 36.5 不变、授权码 0 残留。缓存令牌
+`20261006g → 20261007h`（14 处，`grep -c` 核过旧令牌零残留）。
+
+**这一轮推送实况值得记一条**：`git push` 连报 5 次 `Recv failure: Connection was reset`，
+**同一分钟 `gh api` 完全正常**（不是"整段断"，是 git 那条 443 通道单独被掐）。
+兜底脚本 `D:/Voyra 个人网站/scripts/git-push-safe.mjs <仓库目录> <分支>` 的**真实顺序**是
+"先试普通 `git push`，不通才走 `gh api` 原子提交（blob→tree→commit→ref PATCH）" ——
+本轮它第一次 `git push` 就成了，所以"走 API 通道"这件事这次并没有发生，别把它的名字当承诺。
+（它的 API 兜底对**含文件删除**的提交会死，见用户记忆里那条 `--name-only` + `rev-parse HEAD:<path>`
+的坑；本轮四个提交只新增文件，未触发。）
+
 **1.4.0 发版落点（2026-10-06）**：源码 `0e68706` → tag `v1.4.0`（`gh api git/refs` 建在发版提交上，
 **先提交推送再建 tag，publish_github 最后只建 Release** —— v1.3.6 那次 tag 打错提交的教训换来的顺序）。
 包 `Loom-1.4.0-setup.exe` 36.5 MB（38,224,151 字节，sha256 `79878f1b…`）。GitHub Release 上传成功但
