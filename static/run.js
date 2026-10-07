@@ -90,6 +90,9 @@ function chromeActions(u){
   if(u.status==='waiting') b.push(`<button class="btn btn-primary btn-sm" onclick="runContinue()">${esc(t('run.continue'))}</button>`);
   if(u.status==='running') b.push(`<button class="btn btn-ghost btn-sm" onclick="runCancel()">${ico('stop')}${esc(t('run.stop'))}</button>`);
   if(u.status!=='running' && u.status!=='waiting') b.push(`<button class="btn btn-ghost btn-sm" onclick="runRerun(0)">${ico('refresh')}${esc(t('run.rerun'))}</button>`);
+  /* 跑完/跑挂之后最想问的是"和上次比怎么样"，入口放在页头动作行，不另开一屏 */
+  if(['done','failed','cancelled'].includes(u.status))
+    b.push(`<button class="btn btn-ghost btn-sm" onclick="runCompare()">${ico('chart')}${esc(t('run.cmp'))}</button>`);
   b.push(`<button class="btn btn-ghost btn-sm" onclick="runDelete('${esc(u.id)}')">${esc(t('c.delete'))}</button>`);
   return b.join('');
 }
@@ -912,6 +915,102 @@ async function runRevise(){
   if(r.detail){ CONVO.push({_run:RUN.id, role:'assistant', text:r.detail}); drawConvo(); return; }
 }
 window.runRevise = runRevise;
+
+/* ---------------- 跑与跑对比 ----------------
+   同一条流程第二次跑，第一次的现场一直在盘上，但界面从没回答过"这次比上次怎么样"。
+   这里不新采任何数据：步级 meta 里的 token / 耗时 / 正文字数一直在写。
+   Δ 一律不给红绿 —— token 变少不等于变好，那是评价不是计量。 */
+let CMP = null;
+
+function cmpSteps(run){ return (run && run.steps) || []; }
+function cmpTok(s){
+  const t = (s && s.meta && s.meta.tokens) || {};
+  if(typeof t.total === 'number') return t.total;
+  return (t.in||0) + (t.out||0) + (t.cache_read||0) + (t.cache_write||0);
+}
+function cmpSum(run, key){
+  return cmpSteps(run).reduce((a,s)=>a + (key==='tok' ? cmpTok(s) : (s.meta||{})[key] || 0), 0);
+}
+function cmpNum(n){ return (n||0).toLocaleString('en-US'); }
+function cmpSec(ms){ return ((ms||0)/1000).toFixed(ms && ms < 10000 ? 1 : 0) + 's'; }
+function cmpDiff(n){ return (n>0?'+':'') + cmpNum(n); }
+function cmpState(run, i){
+  const s = cmpSteps(run)[i];
+  return s ? (window.RUN_ST()[s.status||'pending'] || s.status) : '—';
+}
+function cmpRowCells(a, b, i){
+  const sa = cmpSteps(a)[i], sb = cmpSteps(b)[i];
+  const cell = (s, st) => s
+    ? `<div class="cmp-cell"><b>${esc(st)}</b><span class="muted-sm">${esc(t('run.cmpMetric',
+        {tok: cmpNum(cmpTok(s)), sec: cmpSec((s.meta||{}).duration_ms), chars: cmpNum(s.chars||0)}))}</span></div>`
+    : `<div class="cmp-cell"><span class="muted-sm">—</span></div>`;
+  return cell(sb, cmpState(b, i)) + cell(sa, cmpState(a, i));
+}
+
+window.runCompare = async function(){
+  const u = RUN; if(!u) return;
+  const list = await _api('/api/runs?pipeline=' + encodeURIComponent(u.pipeline) + '&limit=50')
+                  .catch(()=>null);
+  const others = ((list && list.runs) || []).filter(r => r.id !== u.id);
+  if(!others.length){ toast(t('run.cmpNone')); return; }
+  CMP = {a: u, others: others, b: null};
+  await cmpLoad(others[0].id);
+};
+async function cmpLoad(id){
+  const d = await _api('/api/runs/' + encodeURIComponent(id)).catch(()=>null);
+  if(!d || d.detail){ toast((d && d.detail) || t('run.cmpFail')); return; }
+  CMP.b = d.run;
+  cmpPaint();
+}
+window.cmpPick = function(id){ cmpLoad(id); };
+
+function cmpPaint(){
+  let root = document.getElementById('cmpRoot');
+  if(!root){
+    root = document.createElement('div');
+    root.id = 'cmpRoot';
+    document.body.appendChild(root);
+    _lockScroll(true);
+  }
+  const a = CMP.a, b = CMP.b, n = Math.max(cmpSteps(a).length, cmpSteps(b).length);
+  let fork = -1;
+  for(let i=0;i<n;i++){
+    const sa = cmpSteps(a)[i], sb = cmpSteps(b)[i];
+    if(!sa || !sb || sa.status !== sb.status){ fork = i; break; }
+  }
+  const side = (run, tag) => `<div class="cmp-side"><div class="cmp-tag">${esc(tag)}</div>`
+    + `<div class="cmp-nums"><b>${esc(cmpNum(cmpSum(run,'tok')))}</b><span>${esc(t('run.cmpTokens'))}</span></div>`
+    + `<div class="cmp-nums"><b>${esc(cmpSec(cmpSum(run,'duration_ms')))}</b><span>${esc(t('run.cmpTime'))}</span></div>`
+    + `<div class="cmp-nums"><b>${esc(String(cmpSteps(run).length))}</b><span>${esc(t('c.steps'))}</span></div>`
+    + `<div class="cmp-nums"><b>${esc(window.RUN_ST()[run.status]||run.status)}</b><span>${esc(t('run.cmpState'))}</span></div></div>`;
+  const rows = [];
+  for(let i=0;i<n;i++){
+    const name = (cmpSteps(a)[i]||cmpSteps(b)[i]||{}).label || ('#' + (i+1));
+    const ta = cmpTok(cmpSteps(b)[i]||{}), tb = cmpTok(cmpSteps(a)[i]||{});
+    rows.push(`<div class="cmp-row${i===fork?' cmp-fork':''}">`
+      + `<div class="cmp-name"><span class="cmp-i">${i+1}</span>${esc(name)}</div>`
+      + cmpRowCells(a, b, i)
+      + `<div class="cmp-d">${tb||ta ? esc(cmpDiff(tb-ta)) : '—'}</div></div>`);
+  }
+  root.innerHTML = `<div class="modal open" onclick="if(event.target===this)cmpClose()">
+    <div class="modal-box cmp-modal">
+      <div class="modal-top"><h3>${esc(t('run.cmpTitle'))}</h3>
+        <button class="modal-x" onclick="cmpClose()">×</button></div>
+      <div class="cmp-sides">${side(b, t('run.cmpPrev'))}${side(a, t('run.cmpNow'))}</div>
+      <div class="cmp-pick"><label>${esc(t('run.cmpWith'))}</label>
+        ${ffSelect(CMP.others.map(r=>({v:r.id, label:String(r.label||r.id).slice(0,32)
+            + ' · ' + (window.RUN_ST()[r.status]||r.status)})), b.id,
+            {onChange:'cmpPick', id:'cmpSel', short:true})}</div>
+      ${fork>=0 ? `<div class="cmp-forknote">${esc(t('run.cmpFork',{n:fork+1}))}</div>` : ''}
+      <div class="cmp-body"><div class="cmp-row cmp-thead"><div>${esc(t('run.cmpStep'))}</div>
+        <div>${esc(t('run.cmpPrev'))}</div><div>${esc(t('run.cmpNow'))}</div>
+        <div class="cmp-d">${esc(t('run.cmpDelta'))}</div></div>${rows.join('')}</div>
+    </div></div>`;
+}
+window.cmpClose = function(){
+  const r = document.getElementById('cmpRoot'); if(r) r.remove();
+  CMP = null; _lockScroll(false);
+};
 
 function drawConvo(){
   const box = document.getElementById('runConvo');
