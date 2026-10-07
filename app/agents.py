@@ -105,6 +105,11 @@ _PERM_TO_SANDBOX = {"plan": "read-only",
                     "acceptEdits": "workspace-write",
                     "bypassPermissions": "danger-full-access"}
 
+# 单条 run 的 token 预算档位（0 = 不限）。设置页只摊这四档，读取端认 0..上限
+# 之间的任意整数 —— 直接改设置的人不该被档位卡住。
+RUN_TOKEN_CAPS = (0, 50_000, 200_000, 500_000)
+_RUN_CAP_MAX = 100_000_000
+
 
 def permission_mode() -> str:
     """'' = 没选，两家沿用各自现状。非法值同样退回 ''，绝不拼半截参数出去噎住 CLI。"""
@@ -129,6 +134,18 @@ def step_retry() -> int:
     except (TypeError, ValueError):
         return 0
 
+
+def run_token_cap() -> int:
+    """单条 run 的 token 预算线，0 = 不限。
+
+    越界/脏值一律退回 0（不限）而不是退回一个小数：预算是"给人止损"的，
+    把它误读成 1 会让每条 run 都在第一步后停下，那比不设更糟。
+    """
+    try:
+        v = int(_setting("run_token_cap") or 0)
+    except (TypeError, ValueError):
+        return 0
+    return v if 0 <= v <= _RUN_CAP_MAX else 0
 
 def auto_continue() -> bool:
     """全自动：过了检查点不停顿，把整条流程一次推到底。"""

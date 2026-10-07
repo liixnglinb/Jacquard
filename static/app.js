@@ -61,7 +61,7 @@ window.ffRelDate = relDate;
 const ST = { agents:[], defaultEngine:'',
              claudeCli:'', codexCli:'', paths:{},
              agentTimeout:'2700', effortOptions:['auto'], permMode:'',
-             reasoningEffort:'auto', stepRetry:'0', autoContinue:'0',
+             reasoningEffort:'auto', stepRetry:'0', runCap:'0', autoContinue:'0',
              skills:[], flows:[], runs:[], caps:null, version:'',
              liveRuns:0,
              presets:null };   /* 端点预设清单，首页模型 chip 的候选；进过设置页会刷新 */
@@ -1320,11 +1320,14 @@ function secRuntime(){
     .map(([v,l])=>[v, l+' '+t('rt.timeoutMin')]);
   const ef = (ST.effortOptions||['auto']).map(v=>[v,t('rt.effort.'+v)]);
   const rt = [0,1,2,3].map(v=>[String(v), v? t('rt.retryTimes',{n:v}) : t('rt.retryNone')]);
+  const caps = [['0', t('rt.capNone')], ['50000', t('rt.cap50k')],
+                ['200000', t('rt.cap200k')], ['500000', t('rt.cap500k')]];
   /* 这里以前有一行「codex 沙箱」选择器：输入台的模式 chip 接管了它之后必须删干净 ——
      一个入口改沙箱、另一个入口改模式（它也会改沙箱），两边会互相打脸。 */
   return spanel(
     srow(t('rt.timeout'), t('rt.timeoutD'), ssel(mins, ST.agentTimeout||'2700', 'saveTimeout'), 'timeout limit seconds step')
     + srow(t('rt.retry'), t('rt.retryD'), sseg(rt, ST.stepRetry||'0', 'saveRetry'), 'retry fail times')
+    + srow(t('rt.cap'), t('rt.capD'), sseg(caps, ST.runCap||'0', 'saveRunCap'), 'budget token cap limit run')
     + srow(t('rt.effort'), t('rt.effortD'), sseg(ef, ST.reasoningEffort||'auto', 'saveEffort'), 'reasoning effort think codex')
     + srow(t('rt.auto'), t('rt.autoD'), ssw(ST.autoContinue==='1', 'saveAutoContinue'), 'checkpoint auto continue pause'),
     t('rt.grpPolicy'));
@@ -1990,7 +1993,7 @@ window.renderSettings = async function(section){
     ST.permMode = ag.permission_mode||'';
     ST.effortOptions = ag.effort_options||['auto'];
     ST.reasoningEffort = ag.reasoning_effort||'auto';
-    ST.stepRetry = ag.step_retry||'0'; ST.autoContinue = ag.auto_continue||'0';
+    ST.stepRetry = ag.step_retry||'0'; ST.runCap = ag.run_token_cap||'0'; ST.autoContinue = ag.auto_continue||'0';
   }
   ST.version = hp.version||'';
 
@@ -2137,6 +2140,10 @@ window.saveTimeout = async function(v){
 window.saveRetry = async function(v){
   if(!await postAgents({step_retry:v})) return;
   ST.stepRetry = v;
+};
+window.saveRunCap = async function(v){
+  if(!await postAgents({run_token_cap:v})) return;
+  ST.runCap = v;
 };
 window.saveEffort = async function(v){
   if(!await postAgents({reasoning_effort:v})) return;

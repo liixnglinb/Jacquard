@@ -394,7 +394,7 @@ window.renderPipelines = async function(){
     </article>`;
   window.__chrome = {title:t('list.flows'), icon:'flow',
     actions:`<button class="btn btn-ghost btn-sm" onclick="plImportPick()">${esc(t('c.import'))}</button>
-      <input class="pl-file" type="file" id="plImportFile" accept="application/json,.json"
+      <input class="pl-file" type="file" id="plImportFile" accept="application/json,.json,application/zip,.zip"
         onchange="plImportFile(this)">
       <button class="btn btn-ghost btn-sm" onclick="taskModal()">${esc(t('home.giveTask'))}</button>
       <button class="btn btn-primary btn-sm" onclick="nav.go('pipeline-edit/new')"><span class="btn-plus">＋</span> ${esc(t('c.create'))}</button>`};
@@ -435,6 +435,7 @@ window.plRowMore = function(e, name){
   const items = [
     {v:'dup', label:t('c.duplicate'), run:()=>plDuplicate(name)},
     {v:'exp', label:t('c.export'), run:()=>plExport(name)},
+    {v:'expb', label:t('c.exportBundle'), run:()=>plExportBundle(name)},
   ];
   /* 归档的开关在侧栏那一栏，这里只给「这一条要不要回到侧栏」，
      不再复制一个视图切换 —— 同一个动作留一个入口。 */
@@ -457,12 +458,21 @@ window.plExport = function(name){
   a.download = 'loom-' + name + '.json';
   document.body.appendChild(a); a.click(); a.remove();
 };
+/* JSON 那份只带技能名，别人导进去建得成、跑到那一步才发现无正文可用。
+   连技能一起打包才是能跑起来的一份分享件（外部技能仍只按名字引用）。 */
+window.plExportBundle = function(name){
+  const a = document.createElement('a');
+  a.href = `/api/pipelines/${encodeURIComponent(name)}/bundle`;
+  a.download = 'loom-' + name + '-bundle.zip';
+  document.body.appendChild(a); a.click(); a.remove();
+};
 window.plImportPick = function(){
   const el = document.getElementById('plImportFile'); if(el) el.click();
 };
 window.plImportFile = async function(el){
   const f = el.files && el.files[0]; el.value = '';
   if(!f) return;
+  if(/\.zip$/i.test(f.name)){ await plImportBundle(f); return; }
   let j = null;
   try { j = JSON.parse(await f.text()); } catch(_){ toast(t('list.importBad')); return; }
   const name = String((j && j.name) || '').trim();
@@ -483,6 +493,24 @@ window.plImportFile = async function(el){
   await plLoad();
   nav.go('pipeline-edit/' + (r.name || send));
 };
+
+/* zip 那一路：后端先把技能落库（同名不覆盖）再建流程，流程撞名自动加后缀。
+   不在上传前问"撞名怎么办"——读不到包里的名字，而整套动作只增不改，
+   问一句换不来任何可回滚的东西。 */
+async function plImportBundle(f){
+  toast(t('list.bundleImporting',{name:f.name}));
+  const fd = new FormData(); fd.append('file', f);
+  let d = null;
+  try{
+    const r = await fetch('/api/pipelines/import-bundle', {method:'POST', body: fd});
+    d = await r.json().catch(()=>({detail:'HTTP '+r.status}));
+  }catch(e){ toast(t('sk.importFail',{err:e})); return; }
+  if(!d || d.detail){ toast((d && d.detail) || t('list.bundleBad')); return; }
+  toast(t('list.bundleImported',{name:d.name, added:(d.skills_added||[]).length,
+      skipped:(d.skills_skipped||[]).length}), true);
+  await plLoad();
+  nav.go('pipeline-edit/' + d.name);
+}
 
 function plBlankStep(n){
   return {key:'step'+n, label:t('ed.newStep',{n}), skill:(PL_SKILLS[0]?PL_SKILLS[0].name:''),

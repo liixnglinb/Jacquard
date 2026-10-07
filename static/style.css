@@ -948,6 +948,11 @@ body.up-on .up-card{opacity:1;transform:translate(-50%,-50%);pointer-events:auto
 .pf-op-start{border-color:var(--accent-line);color:var(--accent);font-weight:600}
 .pf-op-start:hover{background:var(--accent-soft);color:var(--accent-deep)}
 .pf-op-danger:hover{background:var(--bad-soft);color:var(--bad);border-color:var(--bad)}
+/* 失败步直达：静止态就带一点警示色（它不是普通动作，是"这里有事"），
+   但不铺底色 —— 进度条那一行已经够挤，实心块会抢走百分比的注意力。 */
+.pf-op-fail{color:var(--bad)}
+.pf-op-fail .ic{color:var(--bad)}
+.pf-op-fail:hover{background:var(--bad-soft);color:var(--bad);border-color:var(--bad)}
 .pf-op-more{width:26px;padding:0;justify-content:center}
 .pf-op-more .ic{width:13px;height:13px}
 .pf-empty{padding:22px 14px;text-align:center;border:1px dashed var(--line);border-radius:var(--r-2);

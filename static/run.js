@@ -128,6 +128,16 @@ window.renderRunConsole = async function(runId){
   connectStream(runId);
 };
 
+/* 挂在进度条那一行：12 步跑挂在第 9 步时，最不该做的动作是让人往上滚着找。
+   跳过去复用 procJump —— 展开、选中修订步骤这些状态它已经管好了，别复制一份。 */
+function failJump(steps){
+  const bad = steps.map((s,i)=>s.status==='failed'?i:-1).filter(i=>i>=0);
+  if(!bad.length) return '';
+  return `<span class="spacer"></span><button class="pf-op pf-op-fail" onclick="procJump(${bad[0]})">`
+    + `${ico('warn')}${esc(bad.length>1 ? t('run.jumpFailMany',{n:bad.length, at:bad[0]+1})
+                                       : t('run.jumpFail',{at:bad[0]+1}))}</button>`;
+}
+
 function drawConsole(){
   const u = RUN;
   const steps = runSteps(u);
@@ -145,6 +155,7 @@ function drawConsole(){
           <div class="rp-track"><div class="rp-fill" style="width:${pct}%"></div></div>
           <span class="rp-pct">${pct}%</span>
           <span class="muted-sm">${esc(t('run.stepOf',{done, total:steps.length}))}</span>
+          ${failJump(steps)}
         </div>
 
         ${u.status==='waiting' ? rcCheckpointBanner(u) : ''}
@@ -175,6 +186,7 @@ function drawConsole(){
             <span class="rsp-badge" id="wsCount">${WS.length}</span>
             ${['running','revising','waiting'].includes(u.status)?`<span class="ws-live"><i></i>${esc(t('run.wsLive'))}</span>`:''}
             <span class="spacer"></span>
+            ${wsBundleBtn()}
             <button class="pf-op" onclick="runRefreshArts(true)">${ico('refresh')}${esc(t('c.refresh'))}</button></div>
           <div class="rsp-body" id="runArts">${wsRows()}</div>
         </div>
@@ -204,6 +216,16 @@ const fmtB = n => { n = n || 0;
 const ago = sec => { if(!sec) return ''; const d = Math.max(0, Math.floor(Date.now()/1000) - sec);
   return d < 60 ? 'now' : window.ffRelDate(new Date(sec*1000).toISOString()); };
 const outNames = () => new Set(runSteps(RUN).map(s => s.out).filter(Boolean));
+const WS_BUNDLE_MAX = 300 * 1024 * 1024;   /* 与 runner._WS_BUNDLE_MAX_BYTES 同值 */
+/* 交付时一个个点下载太碎；但真到几百 MB，浏览器下载不如直接在文件夹里拷，
+   所以超上限时这里给的是"去哪儿拿"，不是一个必然 400 的按钮。 */
+function wsBundleBtn(){
+  if(!WS.length) return '';
+  const total = WS.reduce((a,f)=>a+(f.bytes||0), 0);
+  if(total > WS_BUNDLE_MAX) return `<span class="muted-sm">${esc(t('run.wsBundleTooBig'))}</span>`;
+  return `<a class="pf-op" href="/api/runs/${encodeURIComponent(RUN.id)}/artifacts-bundle" download`
+    + `>${ico('package')}${esc(t('run.wsBundle'))}</a>`;
+}
 
 function wsRows(){
   const outs = outNames();

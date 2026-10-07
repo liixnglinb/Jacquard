@@ -202,6 +202,143 @@ def export_pipeline(name: str):
         "Content-Disposition": f'attachment; filename="loom-{name}.json"'})
 
 
+_BUNDLE_JSON = "loom-pipeline.json"
+
+
+@app.get("/api/pipelines/{name}/bundle")
+def export_pipeline_bundle(name: str):
+    """流程 + 它引用的**自建**技能，打成一个 zip。
+
+    为什么需要这个：`/export` 那份 JSON 里每步的 skill 只是一个名字，别人导进去
+    能建成功（校验只查字段合法，不查技能存在），跑到那一步才发现无正文可用 ——
+    流程是分享出去了，跑不起来。
+    只带 skill_src 为空的技能：claude / codex 自己目录里的那些按名字引用、
+    不抄正文 —— 抄进来等于把别人会升级的东西冻成我们这里的快照。
+    """
+    import io
+    import json
+    import zipfile
+    p = db.get_pipeline(name)
+    if not p:
+        return JSONResponse({"detail": "not found"}, 404)
+    body = {k: p.get(k) for k in ("name", "label", "desc", "emoji", "g")}
+    body["steps"] = p.get("steps") or []
+    want = []
+    for s in body["steps"]:
+        if (s.get("skill_src") or "").strip():
+            continue
+        # skill 字段是空格分隔的多技能串（主技能 + 叠加规范），逐个收
+        for n in re.split(r"\s+", str(s.get("skill") or "").strip()):
+            if n and n not in want:
+                want.append(n)
+    buf = io.BytesIO()
+    packed, missing = [], []
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
+        z.writestr(_BUNDLE_JSON, json.dumps(body, ensure_ascii=False, indent=2))
+        for n in want:
+            d = _skill_dir_safe(n)
+            if not d or not d.is_dir():
+                missing.append(n)          # 步骤引用过、后来被删掉的技能：照发流程
+                continue
+            files = [f for f in sorted(d.rglob("*")) if f.is_file()]
+            if len(files) > _SKILL_MAX_FILES:
+                return JSONResponse({"detail": f"技能「{n}」文件过多，无法打包"}, 400)
+            total = sum(f.stat().st_size for f in files)
+            if total > _SKILL_MAX_BYTES:
+                return JSONResponse({"detail": f"技能「{n}」体积超上限，无法打包"}, 400)
+            for f in files:
+                rel = f.relative_to(d)
+                if any(part in _SKILL_BANNED_PARTS for part in rel.parts):
+                    continue
+                z.write(f, "skills/%s/%s" % (n, rel.as_posix()))
+            packed.append(n)
+    buf.seek(0)
+    return StreamingResponse(
+        buf, media_type="application/zip",
+        headers={"Content-Disposition": f'attachment; filename="loom-{name}-bundle.zip"'})
+
+
+@app.post("/api/pipelines/import-bundle")
+async def import_pipeline_bundle(file: UploadFile = File(...)):
+    """导入上面那个 zip：技能先落库（**同名不覆盖**），再建流程。
+
+    撞名自动加后缀，不弹确认：前端没法在上传前读包里的流程名，而这一整套动作
+    只增不改（不覆盖任何已有技能、不覆盖已有流程），问一句也换不来可回滚的东西。
+    """
+    import io
+    import json
+    import zipfile
+    chunks, got = [], 0
+    while True:
+        part = await file.read(1024 * 1024)
+        if not part:
+            break
+        got += len(part)
+        chunks.append(part)
+        if got > _SKILL_MAX_BYTES:
+            return JSONResponse({"detail": "包太大（上限 200MB）"}, 413)
+    try:
+        zf = zipfile.ZipFile(io.BytesIO(b"".join(chunks)))
+    except zipfile.BadZipFile:
+        return JSONResponse({"detail": "不是 zip 包"}, 400)
+    infos = zf.infolist()
+    if len(infos) > _SKILL_MAX_FILES:
+        return JSONResponse({"detail": f"包内文件过多（> {_SKILL_MAX_FILES}）"}, 400)
+    names = [i.filename for i in infos]
+    if _BUNDLE_JSON not in names:
+        return JSONResponse({"detail": f"包里找不到 {_BUNDLE_JSON}"}, 400)
+    try:
+        j = json.loads(zf.read(_BUNDLE_JSON).decode("utf-8"))
+    except Exception:
+        return JSONResponse({"detail": f"{_BUNDLE_JSON} 读不出 JSON"}, 400)
+    pname, ok = pipelines.normalize_name(str(j.get("name") or ""))
+    steps = pipelines.normalize_steps(j.get("steps") or [])
+    okv, err = pipelines.validate_steps(steps)
+    if not ok or not okv:
+        return JSONResponse({"detail": err or "包里没有一个合法的流程名"}, 400)
+
+    added, skipped, written = [], [], 0
+    for info in infos:
+        nm = info.filename
+        if info.is_dir() or not nm.startswith("skills/"):
+            continue
+        parts = nm[len("skills/"):].split("/")
+        sname = _norm_skill_name(parts[0])
+        # 只认 skills/<名>/<文件> 这一层结构；穿越段与缓存目录一律不落地
+        if not sname or len(parts) < 2 or any(
+                p in _SKILL_BANNED_PARTS or p in ("", ".", "..") for p in parts):
+            continue
+        dest = _skill_dir_safe(sname)
+        if dest is None:
+            continue
+        if dest.exists():
+            if sname not in skipped:
+                skipped.append(sname)
+            continue
+        target = (dest / "/".join(parts[1:])).resolve()
+        if not target.is_relative_to(dest.resolve()):
+            continue
+        data = zf.read(nm)
+        written += len(data)
+        if written > _SKILL_MAX_BYTES:
+            return JSONResponse({"detail": "解压总量超上限"}, 413)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(data)
+        if sname not in added:
+            added.append(sname)
+
+    final, label = pname, (j.get("label") or pname)
+    if db.get_pipeline(final):
+        nn, k = pname + "-copy", 2
+        while db.get_pipeline(nn):
+            nn, k = f"{pname}-copy{k}", k + 1
+        final, label = nn, label + " copy"
+    db.create_pipeline(final, label, j.get("desc") or "", j.get("emoji") or "",
+                       j.get("g") or "custom", steps=steps)
+    return {"ok": True, "name": final, "label": label, "steps": len(steps),
+            "skills_added": added, "skills_skipped": skipped}
+
+
 @app.get("/api/pipelines/{name}/preview/{index}")
 def preview_pipeline_step(name: str, index: int, brief: str = ""):
     """预览第 index 步实际发给智能体的提示词（系统规范 + 用户指令）。"""
@@ -753,6 +890,34 @@ def download_artifact(run_id: str, fname: str):
     return FileResponse(f, filename=f.name, content_disposition_type="inline")
 
 
+@app.get("/api/runs/{run_id}/artifacts-bundle")
+def download_artifacts_bundle(run_id: str):
+    """一次运行的全部产物打成一个 zip（交付时不用一个个点下载）。
+    打包规则与排除口径在 runner.build_workspace_bundle，这里只管临时文件与回收。"""
+    import os
+    import tempfile
+    from starlette.background import BackgroundTask
+    if not db.get_run(run_id):
+        return JSONResponse({"detail": "运行不存在"}, 404)
+    fd, tmp = tempfile.mkstemp(prefix=f"loom-{run_id}-", suffix=".zip",
+                               dir=str(paths.EXPORT_DIR))
+    os.close(fd)
+    p = Path(tmp)
+    try:
+        n, total = runner.build_workspace_bundle(run_id, p)
+    except FileNotFoundError:
+        p.unlink(missing_ok=True)
+        return JSONResponse({"detail": "这条运行没有工作区"}, 404)
+    except ValueError as e:
+        p.unlink(missing_ok=True)
+        return JSONResponse({"detail": str(e)}, 400)
+    if n == 0:
+        p.unlink(missing_ok=True)
+        return JSONResponse({"detail": "这条运行还没有产物文件"}, 404)
+    return FileResponse(p, filename=f"loom-{run_id}-bundle.zip",
+                        background=BackgroundTask(p.unlink, missing_ok=True))
+
+
 @app.get("/api/runs/{run_id}/logs")
 def run_logs(run_id: str):
     if not db.get_run(run_id):
@@ -783,6 +948,7 @@ class EngineIn(BaseModel):
     permission_mode: str | None = None
     reasoning_effort: str | None = None
     step_retry: str | None = None
+    run_token_cap: str | None = None
     auto_continue: str | None = None
 
 
@@ -801,6 +967,8 @@ def get_agents():
             "reasoning_effort": agents.reasoning_effort(),
             "effort_options": ["auto"] + list(agents.EFFORTS),
             "step_retry": str(agents.step_retry()),
+            "run_token_cap": str(agents.run_token_cap()),
+            "run_token_caps": list(agents.RUN_TOKEN_CAPS),
             "auto_continue": "1" if agents.auto_continue() else "0",
             "paths": {"data": str(paths.DATA_DIR), "skills": str(paths.USER_SKILLS_DIR),
                       "workspaces": str(paths.WORKSPACES_DIR)}}
@@ -857,6 +1025,14 @@ def save_agents(b: EngineIn):
         if not 0 <= n <= 3:
             return bad("重试次数范围 0–3")
         pending["step_retry"] = str(n)
+    if b.run_token_cap is not None:
+        try:
+            n = int(b.run_token_cap)
+        except ValueError:
+            return bad("预算线要填整数（0 = 不限）")
+        if not 0 <= n <= agents._RUN_CAP_MAX:
+            return bad(f"预算线范围 0–{agents._RUN_CAP_MAX}")
+        pending["run_token_cap"] = str(n)
     if b.auto_continue is not None:
         pending["auto_continue"] = "1" if b.auto_continue.strip() in ("1", "true") else "0"
     for k, v in pending.items():

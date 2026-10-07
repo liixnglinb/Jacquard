@@ -465,3 +465,83 @@ def test_stopping_mid_step_keeps_the_streamed_text(stub_cli, flow, monkeypatch, 
     # 这份正文还得看得见：产物品类按后缀认，名字不带 .md 就等于没有入口
     arts = runner.read_artifacts(done)
     assert "partial-draft.md" in arts, sorted(arts)
+
+
+# ==================== 单条 run 的 token 预算线 ====================
+
+def _fixed_tokens_agent(real, per_call):
+    """给每一步钉一个固定 token 数 —— 预算判的是累计量，没必要为了测试真烧配额。
+    注：`run_agent` 返回的是 res，步骤上的 meta.tokens 由 _run_step 从 res["tokens"] 搬。"""
+    def wrapped(*a, **k):
+        r = real(*a, **k)
+        r["tokens"] = {"total": per_call}
+        return r
+    return wrapped
+
+
+def test_budget_line_pauses_before_the_next_step(stub_cli, dbsession, monkeypatch):
+    dbsession.create_pipeline("budgeted", label="有预算", steps=[
+        {"key": "a", "label": "A", "out": "a.md", "engine": "claude", "skill": ""},
+        {"key": "b", "label": "B", "out": "b.md", "engine": "claude", "skill": ""},
+        {"key": "c", "label": "C", "out": "c.md", "engine": "claude", "skill": ""}])
+    db.set_setting("run_token_cap", "1500")
+    monkeypatch.setattr(agents, "run_agent", _fixed_tokens_agent(agents.run_agent, 1000))
+    run = runner.start_run("budgeted", label="预算")
+    try:
+        paused = _wait(run["id"])
+        assert paused["status"] == "waiting", paused["status"]
+        assert paused["waiting_reason"] == "budget"
+        assert [s["status"] for s in paused["steps"]] == ["done", "done", "pending"]
+        assert paused["cur_step"] == 2, "停在第 3 步之前，不是已经跑掉第 3 步"
+        runner.resume_run(run["id"])
+        done = _wait(run["id"])
+        assert done["status"] == "done"
+        assert runner.tokens_spent(done["steps"]) == 3000
+    finally:
+        db.set_setting("run_token_cap", "0")
+        dbsession.delete_pipeline("budgeted")
+
+
+def test_budget_never_pauses_on_the_last_step(stub_cli, dbsession, monkeypatch):
+    """最后一步跑完就该是 done：在它之后再挂一个"等人点继续"是纯粹的骚扰。"""
+    dbsession.create_pipeline("budget-last", label="末步", steps=[
+        {"key": "a", "label": "A", "out": "a.md", "engine": "claude", "skill": ""}])
+    db.set_setting("run_token_cap", "1")
+    monkeypatch.setattr(agents, "run_agent", _fixed_tokens_agent(agents.run_agent, 5000))
+    run = runner.start_run("budget-last", label="末步")
+    try:
+        done = _wait(run["id"])
+        assert done["status"] == "done", done["status"]
+        assert runner.tokens_spent(done["steps"]) == 5000
+    finally:
+        db.set_setting("run_token_cap", "0")
+        dbsession.delete_pipeline("budget-last")
+
+
+def test_tokens_spent_follows_the_stats_page_definition():
+    steps = [{"meta": {"tokens": {"total": 10}}},
+             {"meta": {"tokens": {"in": 3, "out": 4, "cache_read": 2, "cache_write": 1}}},
+             {"meta": {}}, {}, None]
+    assert runner.tokens_spent(steps) == 20
+
+
+def test_tokens_spent_leaves_reasoning_out_of_the_total():
+    """统计页那段 SQL 没把 reasoning 计进 total，这里也必须不算 ——
+    两处口径不一致时，预算线和用户看到的数字会互相打脸。"""
+    assert runner.tokens_spent([{"meta": {"tokens": {"reason": 999}}}]) == 0
+
+
+def test_run_token_cap_falls_back_to_unlimited_on_garbage(dbsession):
+    for bad in ("abc", "", "-5", str(agents._RUN_CAP_MAX + 1), "1.5"):
+        db.set_setting("run_token_cap", bad)
+        assert agents.run_token_cap() == 0, f"脏值 {bad!r} 被当成了预算"
+    db.set_setting("run_token_cap", "200000")
+    assert agents.run_token_cap() == 200000
+
+
+def test_budget_setting_is_validated_at_the_door(client):
+    assert client.post("/api/agents", json={"run_token_cap": "abc"}).status_code == 400
+    assert client.post("/api/agents", json={"run_token_cap": "-1"}).status_code == 400
+    r = client.post("/api/agents", json={"run_token_cap": "50000"})
+    assert r.status_code == 200 and r.json()["run_token_cap"] == "50000"
+    assert "50000" in [str(x) for x in r.json()["run_token_caps"]]

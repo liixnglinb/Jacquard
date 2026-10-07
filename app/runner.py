@@ -373,6 +373,46 @@ def read_office_preview(run_id: str, rel: str) -> dict:
     return out
 
 
+_WS_BUNDLE_MAX_FILES = 800
+_WS_BUNDLE_MAX_BYTES = 300 * 1024 * 1024
+
+
+def build_workspace_bundle(run_id: str, dest: Path) -> tuple:
+    """把一次运行的产物打成 zip，写到 dest。返回 (文件数, 打包字节数)。
+
+    内部文件走 `_is_internal` 同一道闸：引擎原始转录和本次注入的系统提示词里
+    带着用户项目内容与密钥路径，逐个下载取不到，打包更不能取到。
+    符号链接整个跳过（含穿过工作区跑到别处去的），上限之外直接拒 —— 那种体积
+    该去磁盘上拷目录，不是塞进浏览器下载。
+    """
+    ws = _ws_path(run_id)
+    if not ws.is_dir():
+        raise FileNotFoundError(str(ws))
+    root = ws.resolve()
+    keep = []
+    for f in sorted(ws.rglob("*")):
+        if not f.is_file() or f.is_symlink():
+            continue
+        rel = f.relative_to(ws)
+        if _is_internal(rel.as_posix()):
+            continue
+        try:
+            if not f.resolve().is_relative_to(root):
+                continue
+        except OSError:
+            continue
+        keep.append((f, rel))
+    if len(keep) > _WS_BUNDLE_MAX_FILES:
+        raise ValueError(f"产物文件过多（{len(keep)} > {_WS_BUNDLE_MAX_FILES}），请直接在文件夹里取")
+    total = sum(f.stat().st_size for f, _ in keep)
+    if total > _WS_BUNDLE_MAX_BYTES:
+        raise ValueError(f"产物共 {total // (1024 * 1024)} MB，超过打包上限，请直接在文件夹里取")
+    with zipfile.ZipFile(dest, "w", zipfile.ZIP_DEFLATED) as z:
+        for f, rel in keep:
+            z.write(f, rel.as_posix())
+    return len(keep), total
+
+
 def cleanup_orphan_workspaces() -> dict:
     """删掉 orphan_workspaces() 报的那些目录。调用方（endpoint）必须先挡活跃运行：
     孤儿=没有运行记录，理论上不会有活着的智能体在写；但运行记录被人为动过的
@@ -1074,6 +1114,20 @@ def _run_thread(run_id: str, start_step: int = 0):
                 bus.publish({"type": "checkpoint", "index": idx})
                 bus.publish({"type": "state", "run": db.get_run(run_id)})
                 return
+            # 预算线：烧过线就停在下一步之前，交人决定继续还是收工。
+            # 故意复用检查点那套 waiting（前端已有「继续」），不新造一个状态 ——
+            # 同一种"等人"只需要一种表达，多造一个状态就是多一处前端会漏画的分支。
+            cap = agents.run_token_cap()
+            if cap and idx < len(steps) - 1:
+                spent = tokens_spent(steps)
+                if spent > cap:
+                    db.update_run(run_id, status="waiting", waiting_reason="budget",
+                                  cur_step=idx + 1)
+                    bus.publish({"type": "note", "index": idx,
+                                 "text": f"已到预算线：本条运行已用 {spent} tokens，"
+                                         f"上限 {cap}。点「继续」接着跑，或就此收工。"})
+                    bus.publish({"type": "state", "run": db.get_run(run_id)})
+                    return
         db.update_run(run_id, status="done", cur_step=len(steps))
         bus.publish({"type": "state", "run": db.get_run(run_id)})
         bus.publish({"type": "done"})
@@ -1086,6 +1140,23 @@ def _run_thread(run_id: str, start_step: int = 0):
             pass
     finally:
         _CANCEL.discard(run_id)
+
+
+def tokens_spent(steps: list) -> int:
+    """这条 run 到目前为止烧掉的 token。口径与统计页那段 SQL 一致：
+    有 meta.tokens.total 就用它，没有就把 in/out/cache 四项相加
+    （老快照里 total 可能缺，reasoning 那部分不计入 —— 统计页也没算它）。"""
+    n = 0
+    for s in steps or []:
+        if not isinstance(s, dict):
+            continue
+        t = (s.get("meta") or {}).get("tokens") or {}
+        v = t.get("total")
+        if isinstance(v, (int, float)):
+            n += int(v)
+        else:
+            n += sum(int(t.get(k) or 0) for k in ("in", "out", "cache_read", "cache_write"))
+    return n
 
 
 def _snapshot_steps(pipeline: dict) -> list:
