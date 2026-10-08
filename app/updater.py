@@ -345,7 +345,7 @@ def start_download() -> dict:
 
 
 BAT_TMPL = """@echo off
-rem 更新脚本：等主进程真的收尾完成 -> 静默安装 -> 装完把安装包和自己也删掉
+rem 更新脚本：等主进程真的收尾完成 -> 弹出安装向导 -> 装完把安装包和自己也删掉
 rem 等的是"那个标记文件出现了"，不是"过了 N 秒"。以前是 ping 盲睡三秒，两头都不对：
 rem 睡少了安装器撞上还没退出的程序，只能让 Inno 去请系统关应用（用户看到的弹窗）；
 rem 睡多了进程早就没了还白等。
@@ -368,7 +368,10 @@ rem 安装器直接当子进程调用，不用 start /wait：cmd 等子进程结
 rem 换这个不是因为它坏了（真 PE 桩下两种写法删/留都对），是少一个会骗人的环节：
 rem start /wait 对批处理桩根本不返回，errorlevel 留空，判错那行当场语法错 ——
 rem 哪天有人把这里指向一个 .cmd，它就是静默的错。
-"{setup}" /SILENT /NORESTART /SUPPRESSMSGBOXES
+rem 不再静默：安装这一步交回给用户，弹出安装向导由他自己点「下一步」。
+rem 以前带 /SILENT，用户全程看不到安装界面，也不知道装到哪一步。
+rem 保留 /NORESTART 只是禁止安装器顺手重启系统；程序是否在装完自动启动由 iss 决定。
+"{setup}" /NORESTART
 if errorlevel 1 goto :keep
 rem 只有装成功才删。这两行以前没有：以前只删脚本自己，那个 60MB 的 setup.exe
 rem 一直躺在 data\\updates 里，每升一级多一个，而没有任何界面看得见它。
